@@ -5,7 +5,7 @@ This is meant to be my version of tensorflow and while its definitely not as goo
 
 This project is also a package which can be downloaded through pip (It doesn't work yet, will be fixed soon maybe)
 
-Right now this project has:
+Right now this project has
 Activation functions
   - Leaky Relu ("lrelu")
   - Relu ("relu")
