@@ -11,8 +11,10 @@ Activation functions
   - Relu ("relu")
   - Sigmoid ("sigmoid")
   - Softmax ("softmax" but this is not yet implemented in the class)
+
 Error Functions
   - Mean Squared Error (cannot be modified for now)
+
 Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
