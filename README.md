@@ -6,14 +6,14 @@ This is meant to be my version of tensorflow and while its definitely not as goo
 This project is also a package which can be downloaded through pip (It doesn't work yet, will be fixed soon maybe)
 
 Right now this project has:
--Activation functions
+Activation functions
   - Leaky Relu ("lrelu")
   - Relu ("relu")
   - Sigmoid ("sigmoid")
   - Softmax ("softmax" but this is not yet implemented in the class)
--Error Functions
+Error Functions
   - Mean Squared Error (cannot be modified for now)
--Optimization algorithms
+Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
 
