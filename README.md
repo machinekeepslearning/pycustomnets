@@ -10,7 +10,7 @@ Activation functions
   - Leaky Relu ("lrelu")
   - Relu ("relu")
   - Sigmoid ("sigmoid")
-  - Softmax ("softmax" but this is not yet implemented in the class)
+  - Softmax ("softmax")
 
 Error Functions
   - Mean Squared Error (cannot be modified for now)
@@ -19,4 +19,4 @@ Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
 
-In the future, I hope to implement Softmax properly, add Cross Entropy and Categorical Cross Entropy, add Reinforcement Learning algorithms and other stuff.
+In the future, I hope to add Cross Entropy and Categorical Cross Entropy, add Reinforcement Learning algorithms and other stuff.
