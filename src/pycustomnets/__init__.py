@@ -4,60 +4,79 @@ import numpy as np
 import math
 import random
 
-MIN = 0
+MIN = -1
 MAX = 1
-
 
 #sigmoid works
 
-def softmax(vec):
-    activated = []
-    sum = 0
-    for j in range(len(vec)):
-        sum += math.exp(vec[j])
+def SOFTMAX(vec):
 
-    for i in range(len(vec)):
-        activated.append(math.exp(vec[i]) / sum)
+    x = np.exp(vec)
 
-    return activated
+    return x/np.sum(x)
 
+def D_SOFTMAX(vec):
+    return SOFTMAX(vec)*(1 - SOFTMAX(vec))
 
 def d_mega_min(x):
     return math.cos(x) / x + math.sin(x) * math.log(x, math.e) * -1
 
 
-def sigmoid(x):
-    return 1.0 / (1.0 + np.exp(-x))
+def SIGMOID(vec):
+    return 1.0 / (1.0 + np.exp(-vec))
 
 
 # First Derivative of Sigmoid
-def d_sigmoid(x):
-    return sigmoid(x) * (1 - sigmoid(x))
+def D_SIGMOID(vec):
+    return SIGMOID(vec) * (1 - SIGMOID(vec))
 
 
-def RELU(x):
-    return float(max(0, x))
+def RELU(vec):
+    return np.fmax(0, vec)
+
 
 
 # First derivative of Relu
-def d_RELU(x):
-    if x > 0:
-        return float(1)
-    else:
-        return float(0)
+def D_RELU(vec):
+    d = []
+    for x in vec:
+        if x > 0:
+            d.append(1.0)
+        else:
+            d.append(0.0)
+
+    return np.array(d)
 
 
-def LRELU(x):
-    return float(max(0.1 * x, x))
+def LRELU(vec):
+    return np.fmax(0.1 * vec, vec)
 
 
 # First derivative of Leaky Relu
-def d_LRELU(x):
-    if x > 0:
-        return float(1)
-    else:
-        return float(0.1)
+def D_LRELU(vec):
+    d = []
+    for x in vec:
+        if x > 0:
+            d.append(1.0)
+        else:
+            d.append(0.1)
 
+    return np.array(d)
+
+
+funcDict = {
+    "relu": RELU,
+    "lrelu": LRELU,
+    "sigmoid": SIGMOID,
+    "softmax": SOFTMAX,
+}
+
+d_funcDict = {
+    "relu": D_RELU,
+    "lrelu": D_LRELU,
+    "sigmoid": D_SIGMOID,
+    "softmax": D_SOFTMAX,
+}
 
 # Currently, Error Func is Mean Squared Error, this function works
 def errorFunc(y_predicted_vec, y_actual_vec):
@@ -120,7 +139,7 @@ class ModelStandard:
         self.mb_hat = []
         self.vb_hat = []
         self.t = 0
-        self.a_sgd = 0.0001
+        self.a_sgd = 0.001
         self.a_adam = 0.001
         self.B_1 = 0.9
         self.B_2 = 0.999
@@ -132,15 +151,19 @@ class ModelStandard:
         self.bias.append(getRandBias(x))
         self.d_bias_vec.append([0])
 
-        if func == "relu":
-            self.func_vec.append(np.vectorize(RELU))
-            self.d_func_vec.append(np.vectorize(d_RELU))
-        elif func == "lrelu":
-            self.func_vec.append(np.vectorize(LRELU))
-            self.d_func_vec.append(np.vectorize(d_LRELU))
-        elif func == "sigmoid":
-            self.func_vec.append(np.vectorize(sigmoid))
-            self.d_func_vec.append(np.vectorize(d_sigmoid))
+        '''match func:
+            case "relu":
+                self.func_vec.append(np.vectorize(RELU))
+                self.d_func_vec.append(np.vectorize(d_RELU))
+            elif func == "lrelu":
+                self.func_vec.append(np.vectorize(LRELU))
+                self.d_func_vec.append(np.vectorize(d_LRELU))
+            elif func == "sigmoid":
+                self.func_vec.append(np.vectorize(sigmoid))
+                self.d_func_vec.append(np.vectorize(d_sigmoid))'''
+        self.func_vec.append(funcDict.get(func))
+        self.d_func_vec.append(d_funcDict.get(func))
+
         #print(self.bias)
 
     def initialize(self):
@@ -184,6 +207,10 @@ class ModelStandard:
 
             self.inactive[i + 1] = np.dot(self.weights[i], self.layers[i]) + self.bias[i]
             self.layers[i + 1] = self.func_vec[i](self.inactive[i + 1])
+
+        #print(self.weights)
+        #print(self.bias)
+        #print(self.layers)
 
     # Current Optimization Method: First derivative backpropagation (I think this is sgd?)
 
@@ -266,3 +293,28 @@ class ModelStandard:
 class ModelRL:
     def __init__(self):
         pass
+
+'''def train_func(x):
+    return 2 * x'''
+
+
+'''if __name__ == "__main__":
+    train_in = []
+    train_out = []
+
+    for i in range(20):
+        train_in.append([i*0.05])
+        train_out.append([train_func(i*0.05)])
+
+    NN = ModelStandard()
+    NN.setInput(train_in[0])
+    NN.addLayer(1, "softmax")
+    NN.initialize()
+
+    for i in range(1000):
+        for i in range(20):
+            NN.setInput(train_in[i])
+            NN.optimize(train_out[i], "sgd")
+
+    NN.setInput([0.03])
+    NN.out()'''
