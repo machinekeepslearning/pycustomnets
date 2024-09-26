@@ -18,5 +18,5 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/machinekeepslearning/pyNets"
-Issues = "https://github.com/machinekeepslearning/issues"
+Homepage = "https://github.com/machinekeepslearning/pycustomnets"
+Issues = "https://github.com/machinekeepslearning/pycustomnets/issues"
