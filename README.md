@@ -13,10 +13,12 @@ Activation functions
   - Softmax ("softmax")
 
 Error Functions
-  - Mean Squared Error (cannot be modified for now)
+  - Mean Squared Error ("mse")
+  - Cross Entropy ("cross_entropy")
 
 Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
+  - 
 
-In the future, I hope to add Cross Entropy and Categorical Cross Entropy, add Reinforcement Learning algorithms and other stuff.
+In the future, I hope to add Categorical Cross Entropy, add Reinforcement Learning algorithms, Convolutional Neural Networks and other stuff.
