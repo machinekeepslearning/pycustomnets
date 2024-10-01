@@ -1,9 +1,9 @@
 # pycustomnets
 This is a little project that I've been working on for a while with the primary goal of gaining a more in depth understanding of deep learning and honing various skills
 
-This is meant to be my version of tensorflow and while its definitely not as good as tensorflow for now, It does have same basic functions.
+This is meant to be my version of tensorflow and while its definitely not as good as tensorflow for now, It does have some similar basic functions.
 
-This project is also a package which can be downloaded through pip (functional now)
+This project is also a package which can be downloaded through pip
 
 
 Activation functions
@@ -19,6 +19,5 @@ Error Functions
 Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
-  - 
 
 In the future, I hope to add Categorical Cross Entropy, add Reinforcement Learning algorithms, Convolutional Neural Networks and other stuff.
