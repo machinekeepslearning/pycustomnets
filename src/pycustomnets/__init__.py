@@ -4,10 +4,10 @@ import numpy as np
 import math
 import random
 
-MIN = -1
-MAX = 1
+MIN = -0.01
+MAX = 0.01
 
-#sigmoid works
+#Activation Functions and their derivatives
 
 def SOFTMAX(vec):
 
@@ -16,19 +16,21 @@ def SOFTMAX(vec):
     return x/np.sum(x)
 
 def D_SOFTMAX(vec):
-    return SOFTMAX(vec)*(1 - SOFTMAX(vec))
+    s = SOFTMAX(vec)
+    return s * (1 - s)
 
 def d_mega_min(x):
     return math.cos(x) / x + math.sin(x) * math.log(x, math.e) * -1
 
 
 def SIGMOID(vec):
-    return 1.0 / (1.0 + np.exp(-vec))
+    return 1.0 / (1.0 + np.exp(np.negative(vec)))
 
 
 # First Derivative of Sigmoid
 def D_SIGMOID(vec):
-    return SIGMOID(vec) * (1 - SIGMOID(vec))
+    s = SIGMOID(vec)
+    return s * (1.0 - s)
 
 
 def RELU(vec):
@@ -63,6 +65,23 @@ def D_LRELU(vec):
 
     return np.array(d)
 
+#Loss Functions and their derivatives
+
+def MEAN_SQUARED_ERROR(predicted_vec, true_vec):
+    return np.sum(np.square(predicted_vec-true_vec))/len(true_vec)
+
+def D_MEAN_SQUARED_ERROR(predicted_vec, true_vec):
+    return 2.0*(predicted_vec-true_vec)/len(true_vec)
+
+def CROSS_ENTROPY(predicted_vec, true_vec):
+    return np.negative(np.sum(true_vec * np.log(predicted_vec)))
+
+def D_CROSS_ENTROPY(predicted_vec, true_vec):
+    return np.negative(true_vec/predicted_vec)
+
+def BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
+    return np.negative(np.sum(true_vec*np.log(predicted_vec)+(1.0-true_vec)*np.log(1.0-predicted_vec)))
+
 
 funcDict = {
     "relu": RELU,
@@ -76,6 +95,16 @@ d_funcDict = {
     "lrelu": D_LRELU,
     "sigmoid": D_SIGMOID,
     "softmax": D_SOFTMAX,
+}
+
+error_Dict = {
+    "mse": MEAN_SQUARED_ERROR,
+    "cross_entropy": CROSS_ENTROPY,
+}
+
+d_error_Dict = {
+    "mse": D_MEAN_SQUARED_ERROR,
+    "cross_entropy": D_CROSS_ENTROPY,
 }
 
 # Currently, Error Func is Mean Squared Error, this function works
@@ -119,6 +148,8 @@ def zeroList(list):
 # Neural Network Model
 class ModelStandard:
     def __init__(self):
+        self.d_errorFunc = None
+        self.errorFunc = None
         self.layers = [[0]]
         self.inactive = [[0]]
         self.inputVec = None
@@ -140,7 +171,7 @@ class ModelStandard:
         self.vb_hat = []
         self.t = 0
         self.a_sgd = 0.001
-        self.a_adam = 0.001
+        self.a_adam = 0.00001
         self.B_1 = 0.9
         self.B_2 = 0.999
         self.e = math.pow(10, -8)
@@ -151,16 +182,7 @@ class ModelStandard:
         self.bias.append(getRandBias(x))
         self.d_bias_vec.append([0])
 
-        '''match func:
-            case "relu":
-                self.func_vec.append(np.vectorize(RELU))
-                self.d_func_vec.append(np.vectorize(d_RELU))
-            elif func == "lrelu":
-                self.func_vec.append(np.vectorize(LRELU))
-                self.d_func_vec.append(np.vectorize(d_LRELU))
-            elif func == "sigmoid":
-                self.func_vec.append(np.vectorize(sigmoid))
-                self.d_func_vec.append(np.vectorize(d_sigmoid))'''
+
         self.func_vec.append(funcDict.get(func))
         self.d_func_vec.append(d_funcDict.get(func))
 
@@ -201,6 +223,10 @@ class ModelStandard:
         self.layers[0] = inputv
         self.inactive[0] = inputv
 
+    def setError(self, error):
+        self.errorFunc = error_Dict.get(error)
+        self.d_errorFunc = d_error_Dict.get(error)
+
     def feedforward(self):
         for i in range(len(self.weights)):
             #print(self.bias)
@@ -220,7 +246,7 @@ class ModelStandard:
 
         self.feedforward()
 
-        d_Hidden = np.vectorize(d_errorFunc)(self.layers[-1], expected, len(expected))
+        d_Hidden = self.d_errorFunc(self.layers[-1], expected)
 
         for layer_index in range(len(self.layers) - 1, 0, -1):
 
@@ -287,34 +313,9 @@ class ModelStandard:
 
     def error(self, expected):
         self.feedforward()
-        return errorFunc(self.layers[-1], expected)
+        return self.errorFunc(self.layers[-1], expected)
 
 
 class ModelRL:
     def __init__(self):
         pass
-
-'''def train_func(x):
-    return 2 * x'''
-
-
-'''if __name__ == "__main__":
-    train_in = []
-    train_out = []
-
-    for i in range(20):
-        train_in.append([i*0.05])
-        train_out.append([train_func(i*0.05)])
-
-    NN = ModelStandard()
-    NN.setInput(train_in[0])
-    NN.addLayer(1, "softmax")
-    NN.initialize()
-
-    for i in range(1000):
-        for i in range(20):
-            NN.setInput(train_in[i])
-            NN.optimize(train_out[i], "sgd")
-
-    NN.setInput([0.03])
-    NN.out()'''
