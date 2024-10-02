@@ -15,9 +15,14 @@ Activation functions
 Error Functions
   - Mean Squared Error ("mse")
   - Cross Entropy ("cross_entropy")
+  - Binary Cross Entropy ("b_cross_entropy")
 
 Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
 
-In the future, I hope to add Categorical Cross Entropy, add Reinforcement Learning algorithms, Convolutional Neural Networks and other stuff.
+In the future, I hope to add Reinforcement Learning algorithms, Convolutional Neural Networks and other stuff.
+
+Example usage of pycustomnets can be found in the example folder
+
+Better readme coming eventually
