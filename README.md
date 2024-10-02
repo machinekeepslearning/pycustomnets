@@ -23,6 +23,8 @@ Optimization algorithms
 
 In the future, I hope to add Reinforcement Learning algorithms, Convolutional Neural Networks and other stuff.
 
-Example usage of pycustomnets can be found in the example folder
+Example usage of pycustomnets can be found in the examples folder
+  -linearfunction: Trains a neural network to mimic a function
+  -MNIST_Digits: Trains a neural network to identify handwritten digits from the mnist data base (Network architecture (784, 128, 10) was made similar to example shown in                   tensorflow demo for comparison purposes)
 
 Better readme coming eventually
