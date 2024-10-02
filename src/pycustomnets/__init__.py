@@ -11,7 +11,7 @@ MAX = 0.01
 
 def SOFTMAX(vec):
 
-    x = np.exp(vec)
+    x = np.exp(vec - np.mean(vec))
 
     return x/np.sum(x)
 
@@ -82,6 +82,9 @@ def D_CROSS_ENTROPY(predicted_vec, true_vec):
 def BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
     return np.negative(np.sum(true_vec*np.log(predicted_vec)+(1.0-true_vec)*np.log(1.0-predicted_vec)))
 
+def D_BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
+    return np.negative(true_vec/predicted_vec - (1.0-true_vec)/(1.0-predicted_vec))
+
 
 funcDict = {
     "relu": RELU,
@@ -100,30 +103,14 @@ d_funcDict = {
 error_Dict = {
     "mse": MEAN_SQUARED_ERROR,
     "cross_entropy": CROSS_ENTROPY,
+    "b_cross_entropy": BINARY_CROSS_ENTROPY,
 }
 
 d_error_Dict = {
     "mse": D_MEAN_SQUARED_ERROR,
     "cross_entropy": D_CROSS_ENTROPY,
+    "b_cross_entropy": D_BINARY_CROSS_ENTROPY,
 }
-
-# Currently, Error Func is Mean Squared Error, this function works
-def errorFunc(y_predicted_vec, y_actual_vec):
-    Error_sum = 0.0
-
-    if len(y_predicted_vec) != len(y_actual_vec):
-        print("Unequal vectors")
-        raise ValueError
-
-    for out in range(len(y_predicted_vec)):
-        Error_sum += math.pow((y_predicted_vec[out] - y_actual_vec[out]), 2)
-    Error_sum /= float(len(y_predicted_vec))
-
-    return Error_sum
-
-
-def d_errorFunc(y_predicted, y_actual, length):
-    return 2.0 * (y_predicted - y_actual) / length
 
 
 # Single Layer of weights with x rows and y columns
@@ -144,6 +131,15 @@ def zeroList(list):
     for i in range(len(list)):
         list[i] *= 0
 
+def vecify(x, length):
+    vec = []
+    for i in range(length):
+        if i == x:
+            vec.append(1)
+        else:
+            vec.append(0)
+
+    return np.array(vec)
 
 # Neural Network Model
 class ModelStandard:
@@ -242,9 +238,17 @@ class ModelStandard:
 
     #The problem is in the optimization
 
-    def computeGradient(self, expected):
+    def computeGradient(self, true_l):
 
         self.feedforward()
+
+        if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
+            expected = vecify(true_l[0], len(self.layers[-1]))
+        elif len(true_l) == len(self.layers[-1]):
+            expected = true_l
+        else:
+            print("Incomparable Dimensions")
+            exit(-1)
 
         d_Hidden = self.d_errorFunc(self.layers[-1], expected)
 
@@ -311,8 +315,17 @@ class ModelStandard:
         print("Layers: " + str(self.layers))
         print("derivatives: " + str(self.d_weight_vec))
 
-    def error(self, expected):
+    def error(self, true_l):
         self.feedforward()
+
+        if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
+            expected = vecify(true_l[0], len(self.layers[-1]))
+        elif len(true_l) == len(self.layers[-1]):
+            expected = true_l
+        else:
+            print("Incomparable Dimensions")
+            exit(-1)
+
         return self.errorFunc(self.layers[-1], expected)
 
 
