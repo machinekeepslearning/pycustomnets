@@ -3,7 +3,9 @@ This is a little project that I've been working on for a while with the primary 
 
 This is meant to be my version of tensorflow and while its definitely not as good as tensorflow for now, It does have some similar basic functions.
 
-This project is also a package which can be downloaded through pip
+This project is also a package which can be downloaded through pip (however it is not very up to date)
+
+`pip install pycustomnets`
 
 
 Activation functions
