@@ -7,7 +7,7 @@ This project is also a package which can be downloaded through pip (however it i
 
 `pip install pycustomnets`
 
-IMPORTANT NOTE: If you plan on using this, expected values and input values must be vectors or else the model won't work. Single value expected values can be represented as a 1 element vector: `[valuehere]`
+IMPORTANT NOTE: If you plan on using this, expected values and input values must be vectors or else the model won't work. Single value expected values can be represented as a 1 element vector (`[0]`, `[1]`, etc)
 
 Activation functions
   - Leaky Relu ("lrelu")
