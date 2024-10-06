@@ -113,7 +113,7 @@ d_error_Dict = {
 }
 
 
-# Single Layer of weights with x rows and y columns
+# Misc Functions
 
 def getRandWeights(x, y):
     return np.random.uniform(MIN, MAX, (x, y))
@@ -141,6 +141,11 @@ def vecify(x, length):
 
     return np.array(vec)
 
+def getPatch(img_arr, size, stride):
+    for i in range(size[0]):
+        for j in range(size[1]):
+            pass
+
 # Neural Network Model
 class ModelStandard:
     def __init__(self):
@@ -167,7 +172,7 @@ class ModelStandard:
         self.vb_hat = []
         self.t = 0
         self.a_sgd = 0.001
-        self.a_adam = 0.00001
+        self.a_adam = 0.0001
         self.B_1 = 0.9
         self.B_2 = 0.999
         self.e = math.pow(10, -8)
@@ -214,10 +219,17 @@ class ModelStandard:
             self.mb[i] *= 0.0
             self.vb[i] *= 0.0
 
-    def setInput(self, inputv):
+    def setInput(self, arr_in):
+
+        if np.array(arr_in).shape[0] != 1:
+            inputv = np.array(arr_in).flatten()
+        else:
+            inputv = np.array(arr_in)
+
+
         self.inputVec = inputv
-        self.layers[0] = inputv
-        self.inactive[0] = inputv
+        self.layers[0] = copy.deepcopy(inputv)
+        self.inactive[0] = copy.deepcopy(inputv)
 
     def setError(self, error):
         self.errorFunc = error_Dict.get(error)
@@ -332,3 +344,12 @@ class ModelStandard:
 class ModelRL:
     def __init__(self):
         pass
+
+
+class ConvModel(ModelStandard):
+    def __init__(self):
+        super().__init__()
+    def setInput(self, inputv):
+        pass
+
+

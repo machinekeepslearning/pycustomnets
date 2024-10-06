@@ -3,10 +3,8 @@ import numpy
 
 from keras._tf_keras.keras.datasets import mnist
 
-import time
 
-
-epoches = 2
+epoches = 1
 
 def flatten(x):
     flat = []
@@ -25,9 +23,6 @@ def vecify(x):
 
     return numpy.array(vec)
 
-def training_func(x):
-    return 2*x+1
-
 (train_X, train_Y), (test_X, test_Y) = mnist.load_data()
 
 def main():
@@ -38,33 +33,29 @@ def main():
     NN.setError("b_cross_entropy")
     NN.initialize()
 
-    NN.setInput(flatten(test_X[0]))
-    orig1 = NN.error([test_Y[0]])
-
-    NN.setInput(flatten(test_X[10]))
-    orig2 = NN.error([test_Y[10]])
-
 
     for i in range(epoches):
-        for j in range(3000):
-            NN.setInput(flatten(train_X[j]))
+        for j in range(10000):
+            k = j #randint(0, 60000)
+            NN.setInput(train_X[k])
             #print(NN.weights)
-            print(NN.error([train_Y[j]]))
+            print(NN.error([train_Y[k]]))
             #NN.out()
-            NN.optimize([train_Y[j]], "adam")
+            NN.optimize([train_Y[k]], "adam")
 
-    NN.setInput(flatten(test_X[0]))
-    NN.out()
-    print("Before Optimizing: " + str(orig1))
-    print(NN.error([test_Y[0]]))
-    print(vecify(test_Y[0]))
+    sum = 0
 
-    NN.setInput(flatten(test_X[10]))
-    NN.out()
-    print("Before optimizing: " + str(orig2))
-    print(NN.error([test_Y[10]]))
-    print(vecify(test_Y[10]))
+    for i in range(10000):
 
+
+        NN.setInput(test_X[i])
+        NN.out()
+        print(NN.error([test_Y[i]]))
+        sum += NN.error([test_Y[i]])
+        print(vecify(test_Y[i]))
+
+    print("avg error: " + str(sum/10000))
 
 if __name__ == "__main__":
     main()
+
