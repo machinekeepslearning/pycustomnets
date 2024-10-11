@@ -46,8 +46,6 @@ def main():
     sum = 0
 
     for i in range(10000):
-
-
         NN.setInput(test_X[i])
         NN.out()
         print(NN.error([test_Y[i]]))
