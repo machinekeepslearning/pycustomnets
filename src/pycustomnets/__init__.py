@@ -40,14 +40,7 @@ def RELU(vec):
 
 # First derivative of Relu
 def D_RELU(vec):
-    d = []
-    for x in vec:
-        if x > 0:
-            d.append(1.0)
-        else:
-            d.append(0.0)
-
-    return np.array(d)
+    return np.fmin(np.fmax(vec, 0), 1)
 
 
 def LRELU(vec):
@@ -162,11 +155,6 @@ def unitTensor(x):
     return x / np.max(x)
 
 
-def outPatch(img_arr, size, stride):
-    for i in range(size[0]):
-        for j in range(size[1]):
-            pass
-
 
 # Neural Network Model
 class ModelStandard:
@@ -205,6 +193,9 @@ class ModelStandard:
         self.B_1 = 0.9
         self.B_2 = 0.999
         self.e = math.pow(10, -8)
+
+        #For Convolutional NNs
+        self.wrt_cLayer = None
 
         # Misc
         self.quickbce = None
@@ -260,12 +251,15 @@ class ModelStandard:
         self.quickbce = self.eFuncName == "b_cross_entropy" and self.outFuncName == "softmax"
         self.quickce = self.eFuncName == "cross_entropy" and self.outFuncName == "sigmoid"
 
-    def setInput(self, arr_in):
+    def setInput(self, arr_in, norm):
 
         if np.array(arr_in).shape[0] != 1:
-            inputv = unitTensor(np.array(arr_in).flatten())
+            inputv = np.array(arr_in).flatten()
         else:
-            inputv = unitTensor(np.array(arr_in))
+            inputv = np.array(arr_in)
+
+        if norm:
+            inputv = unitTensor(inputv)
 
         self.inputVec = inputv
         self.layers[0] = copy.deepcopy(inputv)
@@ -292,7 +286,7 @@ class ModelStandard:
         elif len(true_l) == len(self.layers[-1]):
             expected = true_l
         else:
-            print("Incomparable Dimensions")
+            print(f"Incomparable Dimensions {len(true_l)} {len(self.layers[-1])}")
             exit(-1)
 
         d_Hidden = self.d_errorFunc(self.layers[-1], expected)
@@ -316,6 +310,9 @@ class ModelStandard:
             d_Hidden = np.dot(self.d_weight_vec[layer_index - 1], self.weights[layer_index - 1])
 
             self.d_weight_vec[layer_index - 1] = (self.d_weight_vec[layer_index - 1] * d_eachW).T
+
+        #For use with CNN gradient
+        self.wrt_cLayer = d_Hidden
 
     def updateSGD(self, d_weight_vec, d_bias_vec):
         for i in range(len(self.weights)):
@@ -349,7 +346,7 @@ class ModelStandard:
         self.computeGradient(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
 
-    def train(self, training_in, training_out, o_type):
+    def train(self, training_in, training_out, o_type, norm):
         print(len(training_out))
         print(self.batch_size)
         self.iterations = int(len(training_out) / self.batch_size)
@@ -367,7 +364,7 @@ class ModelStandard:
                     self.meanb[a] *= 0
                 for j in range(self.batch_size):
                     for k in range(len(self.meanw)):
-                        self.setInput(training_in[j])
+                        self.setInput(training_in[j], norm)
                         self.computeGradient([training_out[j]])
                         self.meanw[k] += np.array(self.d_weight_vec[k])
                         self.meanb[k] += np.array(self.d_bias_vec[k])
@@ -401,11 +398,161 @@ class ModelStandard:
         return self.errorFunc(self.layers[-1], expected)
 
 
-class ModelRL:
-    def __init__(self):
-        pass
-
 
 class ConvModel(ModelStandard):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, batch_size, epochs):
+        super().__init__(batch_size, epochs)
+        self.image_tensor = None #where the image is stored as a tensor
+        self.patch_sizes = [] # array of patch sizes in (x,y) form
+        self.patch_area = [] # array of patch areas with each element = x * y
+        self.strides = [] #array of strides for each convolution
+        self.patch_maps = [] #array of patch maps where a patch map is defined as a matrix containing patches that a kernel will affect
+        self.convLayers = [[0]] # array of each layer to be filtered, including input
+        self.inactiveConvLayers = [] # convLayers that have not been passed into an activation function
+        self.kernels = [] # (x, y) size filters that act as weights
+        self.wrt_kernels = [] # gradient wrt the kernel at each position
+        self.meank = None
+
+        self.updatersC = {
+            "sgd": self.updateSGDC,
+            "adam": self.updateADAMC
+        }
+
+        self.mk = None
+        self.vk = None
+        self.tk = 0
+    def setImage(self, img_tensor):
+        self.image_tensor = img_tensor
+
+        arr_in = img_tensor
+
+        self.image_tensor = arr_in
+        self.convLayers[0] = arr_in
+
+    def _getPatchMap(self, img, patch_x, patch_y):
+        xSlide = img.shape[1] - patch_x + 1
+        ySlide = img.shape[0] - patch_y + 1
+        features = 1
+        p_tensor = []
+
+        for i in range(features):
+            for y in range(ySlide):
+                p_mat = []
+                for x in range(xSlide):
+                    p_mat.append(img[y:y + patch_y, x:x + patch_x].flatten())
+                p_tensor.append(p_mat)
+
+        return np.array(p_tensor)
+
+
+    def addLayerC(self, patch_length, stride):
+        self.kernels.append(getRandWeights(patch_length**2, 1))
+        self.wrt_kernels.append([0])
+        self.convLayers.append([0])
+        self.inactiveConvLayers.append([0])
+        self.patch_sizes.append([patch_length, patch_length])
+        self.strides.append(stride)
+
+        self.patch_area.append(patch_length**2)
+
+    def initializeC(self):
+        self.forwardC()
+        self.initialize()
+
+        self.mk = copy.deepcopy(self.kernels)
+        self.vk = copy.deepcopy(self.kernels)
+
+        for i in range(len(self.mw)):
+            self.mk[i] = np.array(self.mk[i])
+            self.vk[i] = np.array(self.vk[i])
+
+        for i in range(len(self.mw)):
+            self.mk[i] *= 0.0
+            self.vk[i] *= 0.0
+
+
+    def forwardC(self, norm):
+        for i in range(len(self.convLayers)-1):
+            self.patch_maps.append(self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1]))
+            self.inactiveConvLayers[i] = np.dot(self.patch_maps[i], self.kernels[i])
+            self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (self.convLayers[i].shape[0]-self.strides[i], self.convLayers[i].shape[1]-self.strides[i]))
+            self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
+        self.setInput(self.convLayers[-1], norm)
+
+    def forwardAll(self, norm):
+        self.forwardC(norm)
+        self.feedforward()
+
+    def computeGradientC(self, true_l, norm):
+        self.forwardAll(norm)
+        self.computeGradient(true_l)
+        for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
+            kernel_side = int(math.sqrt(len(self.kernels[i-1])))
+            deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
+            transformed_deriv = deriv.reshape(self.patch_maps[i].shape[0:2])
+            self.wrt_kernels[i] = np.sum(np.rot90(transformed_deriv, 1, (1, 0)) * np.rot90(self.patch_maps[i], 1, (2, 0)), (1, 2))
+            self.wrt_kernels[i].reshape((kernel_side, kernel_side))
+
+            transformed_deriv = np.pad(transformed_deriv, kernel_side-1, "constant")
+            deriv_map = self._getPatchMap(transformed_deriv, kernel_side, kernel_side)
+            self.wrt_cLayer = np.dot(deriv_map, np.flip(self.kernels[i], 0))
+
+    def updateADAMC(self, wrt_kernels):
+        self.tk += 1
+
+        for k in range(len(self.mk)):
+
+            self.mk[k] = wrt_kernels[k].reshape((4, 1)) * (1.0 - self.B_1) + self.mk[k] * self.B_1
+            self.vk[k] = np.square(wrt_kernels[k].reshape((4, 1))) * (1 - self.B_2) + self.vk[k] * self.B_2
+
+            self.mk_hat = self.mk[k] / (1.0 - math.pow(self.B_1, self.t))
+            self.vk_hat = self.vk[k] / (1.0 - math.pow(self.B_2, self.t))
+
+            self.kernels[k] -= self.a_adam * np.divide(self.mk_hat, np.sqrt(self.vk_hat) + self.e)
+
+    def updateSGDC(self, wrt_kernels):
+        for i in range(len(self.kernels)):
+            self.kernels[i] -= self.a_sgd * wrt_kernels[i]
+
+    def optimizeC(self, expected, o_type):
+        self.computeGradientC(expected)
+        self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
+        self.updatersC.get(o_type)(self.wrt_kernels)
+
+    def train(self, training_in, training_out, o_type, norm):
+        print(len(training_out))
+        print(self.batch_size)
+        self.iterations = int(len(training_out) / self.batch_size)
+        print(self.iterations)
+
+        self.meanw = copy.deepcopy(self.weights)
+        self.meanb = copy.deepcopy(self.bias)
+        self.meank = copy.deepcopy(self.kernels)
+
+        for _epoch in range(self.epochs):
+            print("Epoch: " + str(_epoch))
+            for i in range(self.iterations):
+                print("Iteration: " + str(i))
+                for a in range(len(self.meanw)):
+                    self.meanw[a] *= 0
+                    self.meanb[a] *= 0
+                for a in range(len(self.meank)):
+                    self.meank[a] *= 0
+                for j in range(self.batch_size):
+                    self.setImage(training_in[j])
+                    self.computeGradientC([training_out[j]], norm)
+                    for k in range(len(self.meanw)):
+                        self.meanw[k] += np.array(self.d_weight_vec[k])
+                        self.meanb[k] += np.array(self.d_bias_vec[k])
+                    for k in range(len(self.meank)):
+                        self.meank[k] += np.array(self.wrt_kernels[k])
+                for b in range(len(self.meanw)):
+                    self.meanw[b] /= self.batch_size
+                    self.meanb[b] /= self.batch_size
+                for b in range(len(self.meank)):
+                    self.meank[b] /= self.batch_size
+
+                self.updaters.get(o_type)(self.meanw, self.meanb)
+                self.updatersC.get(o_type)(self.meank)
+
+
