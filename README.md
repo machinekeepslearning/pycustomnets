@@ -7,7 +7,7 @@ This project is also a package which can be downloaded through pip (however it m
 
 `pip install pycustomnets`
 
-IMPORTANT NOTE: If you plan on using this, expected values and input values must be vectors or else the model won't work. Single value expected values can be represented as a 1 element vector (`[0]`, `[1]`, etc)
+IMPORTANT NOTE: If you plan on using this, expected values and input values must be arrays or else the model won't work. Single value expected values can be represented as a single element array (`[0]`, `[1]`, etc)
 
 Activation functions
   - Leaky Relu ("lrelu")
@@ -24,10 +24,12 @@ Optimization algorithms
   - Stochastic Gradient Descent ("sgd")
   - ADAM ("adam")
 
-In the future, I hope to add Reinforcement Learning algorithms, Convolutional Neural Networks and other stuff.
+In the future, I hope to add Reinforcement Learning algorithms, transformers and other stuff.
 
 Example usage of pycustomnets can be found in the examples folder:
   - linearfunction: Trains a neural network to mimic a function
   - MNIST_Digits: Trains a neural network to identify handwritten digits from the mnist data base (Network architecture (784, 128, 10) was made similar to example shown in                   tensorflow demo for comparison purposes)
+
+Convolutional Neural Networks have been added. Example usage coming soon
 
 Better readme coming eventually
