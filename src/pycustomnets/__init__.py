@@ -1,9 +1,12 @@
 import copy
+from idlelib.pyparse import trans
+from logging import fatal
+
 import numpy as np
 import math
 import random
 
-MIN = -0.01
+MIN = 0
 MAX = 0.01
 
 
@@ -78,6 +81,8 @@ def D_CROSS_ENTROPY(predicted_vec, true_vec):
 
 
 def BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
+    print(predicted_vec)
+    print(true_vec)
     return np.negative(np.sum(true_vec * np.log(predicted_vec) + (1.0 - true_vec) * np.log(1.0 - predicted_vec)))
 
 
@@ -456,7 +461,7 @@ class ConvModel(ModelStandard):
         self.patch_area.append(patch_length**2)
 
     def initializeC(self):
-        self.forwardC()
+        self.forwardC(False)
         self.initialize()
 
         self.mk = copy.deepcopy(self.kernels)
@@ -475,23 +480,23 @@ class ConvModel(ModelStandard):
         for i in range(len(self.convLayers)-1):
             self.patch_maps.append(self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1]))
             self.inactiveConvLayers[i] = np.dot(self.patch_maps[i], self.kernels[i])
-            self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (self.convLayers[i].shape[0]-self.strides[i], self.convLayers[i].shape[1]-self.strides[i]))
+            self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (self.convLayers[i].shape[0]-self.patch_sizes[i][0]+1, self.convLayers[i].shape[1]-self.patch_sizes[i][0]+1))
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
         self.setInput(self.convLayers[-1], norm)
 
-    def forwardAll(self, norm):
-        self.forwardC(norm)
+    def forwardAll(self):
+        self.forwardC(False)
         self.feedforward()
 
     def computeGradientC(self, true_l, norm):
-        self.forwardAll(norm)
+        self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
             kernel_side = int(math.sqrt(len(self.kernels[i-1])))
             deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
             transformed_deriv = deriv.reshape(self.patch_maps[i].shape[0:2])
             self.wrt_kernels[i] = np.sum(np.rot90(transformed_deriv, 1, (1, 0)) * np.rot90(self.patch_maps[i], 1, (2, 0)), (1, 2))
-            self.wrt_kernels[i].reshape((kernel_side, kernel_side))
+            self.wrt_kernels[i] = self.wrt_kernels[i].reshape((kernel_side**2, 1))
 
             transformed_deriv = np.pad(transformed_deriv, kernel_side-1, "constant")
             deriv_map = self._getPatchMap(transformed_deriv, kernel_side, kernel_side)
@@ -501,9 +506,8 @@ class ConvModel(ModelStandard):
         self.tk += 1
 
         for k in range(len(self.mk)):
-
-            self.mk[k] = wrt_kernels[k].reshape((4, 1)) * (1.0 - self.B_1) + self.mk[k] * self.B_1
-            self.vk[k] = np.square(wrt_kernels[k].reshape((4, 1))) * (1 - self.B_2) + self.vk[k] * self.B_2
+            self.mk[k] = wrt_kernels[k] * (1.0 - self.B_1) + self.mk[k] * self.B_1
+            self.vk[k] = np.square(wrt_kernels[k]) * (1 - self.B_2) + self.vk[k] * self.B_2
 
             self.mk_hat = self.mk[k] / (1.0 - math.pow(self.B_1, self.t))
             self.vk_hat = self.vk[k] / (1.0 - math.pow(self.B_2, self.t))
@@ -515,11 +519,14 @@ class ConvModel(ModelStandard):
             self.kernels[i] -= self.a_sgd * wrt_kernels[i]
 
     def optimizeC(self, expected, o_type):
-        self.computeGradientC(expected)
+        self.computeGradientC(expected, False)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
         self.updatersC.get(o_type)(self.wrt_kernels)
 
     def train(self, training_in, training_out, o_type, norm):
+
+        avg_error = 0
+
         print(len(training_out))
         print(self.batch_size)
         self.iterations = int(len(training_out) / self.batch_size)
@@ -533,6 +540,7 @@ class ConvModel(ModelStandard):
             print("Epoch: " + str(_epoch))
             for i in range(self.iterations):
                 print("Iteration: " + str(i))
+                print(avg_error)
                 for a in range(len(self.meanw)):
                     self.meanw[a] *= 0
                     self.meanb[a] *= 0
@@ -541,16 +549,18 @@ class ConvModel(ModelStandard):
                 for j in range(self.batch_size):
                     self.setImage(training_in[j])
                     self.computeGradientC([training_out[j]], norm)
+                    avg_error += self.error([training_out[j]])
                     for k in range(len(self.meanw)):
                         self.meanw[k] += np.array(self.d_weight_vec[k])
                         self.meanb[k] += np.array(self.d_bias_vec[k])
                     for k in range(len(self.meank)):
-                        self.meank[k] += np.array(self.wrt_kernels[k])
+                        self.meank[k] += np.array(self.wrt_kernels[k].reshape(self.kernels[k].shape))
                 for b in range(len(self.meanw)):
                     self.meanw[b] /= self.batch_size
                     self.meanb[b] /= self.batch_size
                 for b in range(len(self.meank)):
                     self.meank[b] /= self.batch_size
+                avg_error /= self.batch_size
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
                 self.updatersC.get(o_type)(self.meank)
