@@ -408,6 +408,7 @@ class ConvModel(ModelStandard):
     def __init__(self, batch_size, epochs):
         super().__init__(batch_size, epochs)
         self.image_tensor = None #where the image is stored as a tensor
+        self.sum_tuple = [] # The axes across which to sum
         self.patch_sizes = [] # array of patch sizes in (x,y) form
         self.patch_area = [] # array of patch areas with each element = x * y
         self.strides = [] #array of strides for each convolution
@@ -427,27 +428,35 @@ class ConvModel(ModelStandard):
         self.vk = None
         self.tk = 0
     def setImage(self, img_tensor):
-        self.image_tensor = img_tensor
-
-        arr_in = img_tensor
+        arr_in = None
+        match len(img_tensor.shape):
+            case 3:
+                arr_in = img_tensor
+            case 2:
+                arr_in = np.array([img_tensor]).reshape(28, 28, 1)
 
         self.image_tensor = arr_in
         self.convLayers[0] = arr_in
 
     def _getPatchMap(self, img, patch_x, patch_y):
         xSlide = img.shape[1] - patch_x + 1
+        #print(xSlide)
         ySlide = img.shape[0] - patch_y + 1
-        features = 1
-        p_tensor = []
+        #print(img.shape[0])
+        tensor_four = []
 
-        for i in range(features):
+        for f in range(img.shape[2]):
+            p_tensor = []
             for y in range(ySlide):
                 p_mat = []
                 for x in range(xSlide):
-                    p_mat.append(img[y:y + patch_y, x:x + patch_x].flatten())
+                    p_mat.append(img[y:y + patch_y, x:x + patch_x, f].flatten())
+                #print(p_mat)
                 p_tensor.append(p_mat)
+            tensor_four.append(p_tensor)
 
-        return np.array(p_tensor)
+        #print(tensor_four)
+        return np.array(tensor_four)
 
 
     def addLayerC(self, patch_length, stride):
@@ -455,7 +464,7 @@ class ConvModel(ModelStandard):
         self.wrt_kernels.append([0])
         self.convLayers.append([0])
         self.inactiveConvLayers.append([0])
-        self.patch_sizes.append([patch_length, patch_length])
+        self.patch_sizes.append(np.array([patch_length, patch_length, 0]))
         self.strides.append(stride)
 
         self.patch_area.append(patch_length**2)
@@ -479,8 +488,9 @@ class ConvModel(ModelStandard):
     def forwardC(self, norm):
         for i in range(len(self.convLayers)-1):
             self.patch_maps.append(self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1]))
+            #self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (self.convLayers[i].shape[0]-self.patch_sizes[i][0]+1, self.convLayers[i].shape[1]-self.patch_sizes[i][0]+1))
             self.inactiveConvLayers[i] = np.dot(self.patch_maps[i], self.kernels[i])
-            self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (self.convLayers[i].shape[0]-self.patch_sizes[i][0]+1, self.convLayers[i].shape[1]-self.patch_sizes[i][0]+1))
+            self.inactiveConvLayers[i] = self.inactiveConvLayers[i].reshape(np.array(list(self.convLayers[i].shape)) - self.patch_sizes[i] + np.array([1, 1, 0])) # reshape n stuff
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
         self.setInput(self.convLayers[-1], norm)
 
@@ -488,17 +498,17 @@ class ConvModel(ModelStandard):
         self.forwardC(False)
         self.feedforward()
 
-    def computeGradientC(self, true_l, norm):
+    def computeGradientC(self, true_l):
         self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
             kernel_side = int(math.sqrt(len(self.kernels[i-1])))
             deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
-            transformed_deriv = deriv.reshape(self.patch_maps[i].shape[0:2])
-            self.wrt_kernels[i] = np.sum(np.rot90(transformed_deriv, 1, (1, 0)) * np.rot90(self.patch_maps[i], 1, (2, 0)), (1, 2))
+            t_deriv = deriv.reshape(self.patch_maps[i].shape[0:3])
+            self.wrt_kernels[i] = np.sum(np.rot90(t_deriv, 1, (2, 1)) * np.rot90(self.patch_maps[i], 1, (3, 1)), (0, 2, 3))
             self.wrt_kernels[i] = self.wrt_kernels[i].reshape((kernel_side**2, 1))
 
-            transformed_deriv = np.pad(transformed_deriv, kernel_side-1, "constant")
+            transformed_deriv = np.pad(t_deriv, kernel_side-1, "constant")
             deriv_map = self._getPatchMap(transformed_deriv, kernel_side, kernel_side)
             self.wrt_cLayer = np.dot(deriv_map, np.flip(self.kernels[i], 0))
 
@@ -519,7 +529,7 @@ class ConvModel(ModelStandard):
             self.kernels[i] -= self.a_sgd * wrt_kernels[i]
 
     def optimizeC(self, expected, o_type):
-        self.computeGradientC(expected, False)
+        self.computeGradientC(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
         self.updatersC.get(o_type)(self.wrt_kernels)
 
@@ -548,7 +558,7 @@ class ConvModel(ModelStandard):
                     self.meank[a] *= 0
                 for j in range(self.batch_size):
                     self.setImage(training_in[j])
-                    self.computeGradientC([training_out[j]], norm)
+                    self.computeGradientC([training_out[j]])
                     avg_error += self.error([training_out[j]])
                     for k in range(len(self.meanw)):
                         self.meanw[k] += np.array(self.d_weight_vec[k])
