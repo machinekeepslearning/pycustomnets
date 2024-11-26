@@ -1,6 +1,4 @@
 import copy
-from idlelib.pyparse import trans
-from logging import fatal
 
 import numpy as np
 import math
