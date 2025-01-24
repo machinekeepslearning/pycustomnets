@@ -504,14 +504,14 @@ class ConvModel(ModelStandard):
             last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
             this_deriv = numpy.moveaxis(numpy.swapaxes(last_deriv, 3, 4), 4, 0)
             this_deriv = numpy.multiply(this_deriv, self.patch_maps[i])
-            self.wrt_kernels[i] = numpy.sum(this_deriv, (1, 2, 3))
+            self.wrt_kernels[i] = numpy.reshape(numpy.sum(this_deriv, (1, 2, 3)), self.kernels[i].shape)
+            print(self.wrt_kernels[i].shape)
 
             #calculates derivative wrt the layer the current kernel activates to be used for the next kernel
             temp = []
             self.wrt_cLayer = []
             kernel_side = int(math.sqrt(self.kernels[i].shape[1]))
             padded_deriv = numpy.delete(numpy.delete(numpy.delete(numpy.pad(last_deriv, kernel_side - 1, "constant"), [0, last_deriv.shape[0]+1], 0), [0, last_deriv.shape[3]+1], 3), [0, last_deriv.shape[4]+1], 4)
-            print(padded_deriv.shape)
 
             for p in range(self.kernels[i].shape[0]):
                 temp.append(self._getPatchMap(padded_deriv[:, :, :, p, 0], kernel_side, kernel_side))
@@ -535,7 +535,7 @@ class ConvModel(ModelStandard):
         for i in range(len(self.kernels)):
             self.kernels[i] -= self.a_sgd * wrt_kernels[i]
 
-    def optimizeC(self, expected, o_type):
+    def updateC(self, expected, o_type):
         self.computeGradientC(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
         self.updatersC.get(o_type)(self.wrt_kernels)
