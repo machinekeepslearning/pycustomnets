@@ -1,8 +1,12 @@
 import copy
+from idlelib.pyparse import trans
+from logging import fatal
 
-import numpy as np
+import numpy
 import math
 import random
+
+import numpy as np
 
 MIN = 0
 MAX = 0.01
@@ -11,9 +15,9 @@ MAX = 0.01
 # Activation Functions and their derivatives
 
 def SOFTMAX(vec):
-    x = np.exp(vec - np.mean(vec))
+    x = numpy.exp(vec - numpy.mean(vec))
 
-    return x / np.sum(x)
+    return x / numpy.sum(x)
 
 
 def D_SOFTMAX(vec):
@@ -26,7 +30,7 @@ def d_mega_min(x):
 
 
 def SIGMOID(vec):
-    return 1.0 / (1.0 + np.exp(np.negative(vec)))
+    return 1.0 / (1.0 + numpy.exp(numpy.negative(vec)))
 
 
 # First Derivative of Sigmoid
@@ -36,16 +40,16 @@ def D_SIGMOID(vec):
 
 
 def RELU(vec):
-    return np.fmax(0, vec)
+    return numpy.fmax(0, vec)
 
 
 # First derivative of Relu
 def D_RELU(vec):
-    return np.fmin(np.fmax(vec, 0), 1)
+    return numpy.fmin(numpy.fmax(vec, 0), 1)
 
 
 def LRELU(vec):
-    return np.fmax(0.1 * vec, vec)
+    return numpy.fmax(0.1 * vec, vec)
 
 
 # First derivative of Leaky Relu
@@ -57,13 +61,13 @@ def D_LRELU(vec):
         else:
             d.append(0.1)
 
-    return np.array(d)
+    return numpy.array(d)
 
 
 # Loss Functions and their derivatives
 
 def MEAN_SQUARED_ERROR(predicted_vec, true_vec):
-    return np.sum(np.square(predicted_vec - true_vec)) / len(true_vec)
+    return numpy.sum(numpy.square(predicted_vec - true_vec)) / len(true_vec)
 
 
 def D_MEAN_SQUARED_ERROR(predicted_vec, true_vec):
@@ -71,21 +75,21 @@ def D_MEAN_SQUARED_ERROR(predicted_vec, true_vec):
 
 
 def CROSS_ENTROPY(predicted_vec, true_vec):
-    return np.negative(np.sum(true_vec * np.log(predicted_vec)))
+    return numpy.negative(numpy.sum(true_vec * numpy.log(predicted_vec)))
 
 
 def D_CROSS_ENTROPY(predicted_vec, true_vec):
-    return np.negative(true_vec / predicted_vec)
+    return numpy.negative(true_vec / predicted_vec)
 
 
 def BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
     print(predicted_vec)
     print(true_vec)
-    return np.negative(np.sum(true_vec * np.log(predicted_vec) + (1.0 - true_vec) * np.log(1.0 - predicted_vec)))
+    return numpy.negative(numpy.sum(true_vec * numpy.log(predicted_vec) + (1.0 - true_vec) * numpy.log(1.0 - predicted_vec)))
 
 
 def D_BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
-    return np.negative(true_vec / predicted_vec - (1.0 - true_vec) / (1.0 - predicted_vec))
+    return numpy.negative(true_vec / predicted_vec - (1.0 - true_vec) / (1.0 - predicted_vec))
 
 #Shortcuts
 
@@ -93,7 +97,7 @@ def BCE_SOFTMAX(inactive, true):
     return SOFTMAX(inactive) - true
 
 def CE_SIGMOID(inactive, true):
-    return np.negative(true * (1-SIGMOID(inactive)))
+    return numpy.negative(true * (1 - SIGMOID(inactive)))
 
 #Dictionaries
 
@@ -126,8 +130,8 @@ d_error_Dict = {
 
 # Misc Functions
 
-def getRandWeights(x, y):
-    return np.random.uniform(MIN, MAX, (x, y))
+#def getRandWeights(x, y):
+#    return np.random.uniform(MIN, MAX, (x, y))
 
 
 def getRandBias(x):
@@ -151,11 +155,11 @@ def vecify(x, length):
         else:
             vec.append(0)
 
-    return np.array(vec)
+    return numpy.array(vec)
 
 
 def unitTensor(x):
-    return x / np.max(x)
+    return x / numpy.max(x)
 
 
 
@@ -211,7 +215,7 @@ class ModelStandard:
     def addLayer(self, x, func):
         self.inactive.append([x])
         self.layers.append([x])
-        self.bias.append(np.array(getRandBias(x)))
+        self.bias.append(numpy.array(getRandBias(x)))
         self.d_bias_vec.append([0])
 
         self.func_vec.append(funcDict.get(func))
@@ -222,10 +226,10 @@ class ModelStandard:
     def initialize(self):
         for layer in range(len(self.layers) - 1):
             if len(self.weights) == 0:
-                self.weights.append(getRandWeights(self.layers[layer + 1][0], len(self.inputVec)))
+                self.weights.append(numpy.random.uniform(MIN, MAX, (self.layers[layer + 1][0], len(self.inputVec))))
                 self.d_weight_vec.append([1])
             else:
-                self.weights.append(getRandWeights(self.layers[layer + 1][0], len(self.weights[-1])))
+                self.weights.append(numpy.random.uniform(MIN, MAX, (self.layers[layer + 1][0], len(self.weights[-1]))))
                 self.d_weight_vec.append([1])
 
         self.mw = copy.deepcopy(self.weights)
@@ -238,10 +242,10 @@ class ModelStandard:
         self.vb_hat = copy.deepcopy(self.weights)
 
         for i in range(len(self.mw)):
-            self.mw[i] = np.array(self.mw[i])
-            self.vw[i] = np.array(self.vw[i])
-            self.mb[i] = np.array(self.mb[i])
-            self.vb[i] = np.array(self.vb[i])
+            self.mw[i] = numpy.array(self.mw[i])
+            self.vw[i] = numpy.array(self.vw[i])
+            self.mb[i] = numpy.array(self.mb[i])
+            self.vb[i] = numpy.array(self.vb[i])
 
         for i in range(len(self.mw)):
             self.mw[i] *= 0.0
@@ -256,10 +260,10 @@ class ModelStandard:
 
     def setInput(self, arr_in, norm):
 
-        if np.array(arr_in).shape[0] != 1:
-            inputv = np.array(arr_in).flatten()
+        if numpy.array(arr_in).shape[0] != 1:
+            inputv = numpy.array(arr_in).flatten()
         else:
-            inputv = np.array(arr_in)
+            inputv = numpy.array(arr_in)
 
         if norm:
             inputv = unitTensor(inputv)
@@ -276,7 +280,7 @@ class ModelStandard:
     def feedforward(self):
         for i in range(len(self.weights)):
 
-            self.inactive[i + 1] = np.dot(self.weights[i], self.layers[i]) + self.bias[i]
+            self.inactive[i + 1] = numpy.dot(self.weights[i], self.layers[i]) + self.bias[i]
             self.layers[i + 1] = self.func_vec[i](self.inactive[i + 1])
 
     # Optimization start
@@ -308,9 +312,9 @@ class ModelStandard:
                 self.d_weight_vec[layer_index - 1] = d_activated_sum_vec * d_Hidden
                 self.d_bias_vec[layer_index - 1] = d_activated_sum_vec * d_Hidden
 
-            d_eachW = np.array([self.layers[layer_index - 1]] * len(self.layers[layer_index])).T
+            d_eachW = numpy.array([self.layers[layer_index - 1]] * len(self.layers[layer_index])).T
 
-            d_Hidden = np.dot(self.d_weight_vec[layer_index - 1], self.weights[layer_index - 1])
+            d_Hidden = numpy.dot(self.d_weight_vec[layer_index - 1], self.weights[layer_index - 1])
 
             self.d_weight_vec[layer_index - 1] = (self.d_weight_vec[layer_index - 1] * d_eachW).T
 
@@ -334,16 +338,16 @@ class ModelStandard:
 
             # print(self.m[k])
 
-            self.vw[k] = np.square(d_weight_vec[k]) * (1 - self.B_2) + self.vw[k] * self.B_2
+            self.vw[k] = numpy.square(d_weight_vec[k]) * (1 - self.B_2) + self.vw[k] * self.B_2
             self.mw_hat = self.mw[k] / (1 - math.pow(self.B_1, self.t))
             self.vw_hat = self.vw[k] / (1 - math.pow(self.B_2, self.t))
 
-            self.vb[k] = np.square(d_bias_vec[k]) * (1 - self.B_2) + self.vb[k] * self.B_2
+            self.vb[k] = numpy.square(d_bias_vec[k]) * (1 - self.B_2) + self.vb[k] * self.B_2
             self.mb_hat = self.mb[k] / (1 - math.pow(self.B_1, self.t))
             self.vb_hat = self.vb[k] / (1 - math.pow(self.B_2, self.t))
 
-            self.weights[k] -= self.a_adam * np.divide(self.mw_hat, np.sqrt(self.vw_hat) + self.e)
-            self.bias[k] -= self.a_adam * np.divide(self.mb_hat, np.sqrt(self.vb_hat) + self.e)
+            self.weights[k] -= self.a_adam * numpy.divide(self.mw_hat, numpy.sqrt(self.vw_hat) + self.e)
+            self.bias[k] -= self.a_adam * numpy.divide(self.mb_hat, numpy.sqrt(self.vb_hat) + self.e)
 
     def optimize(self, expected, o_type):
         self.computeGradient(expected)
@@ -369,8 +373,8 @@ class ModelStandard:
                     for k in range(len(self.meanw)):
                         self.setInput(training_in[j], norm)
                         self.computeGradient([training_out[j]])
-                        self.meanw[k] += np.array(self.d_weight_vec[k])
-                        self.meanb[k] += np.array(self.d_bias_vec[k])
+                        self.meanw[k] += numpy.array(self.d_weight_vec[k])
+                        self.meanb[k] += numpy.array(self.d_bias_vec[k])
                 for b in range(len(self.meanw)):
                     self.meanw[b] /= self.batch_size
                     self.meanb[b] /= self.batch_size
@@ -429,40 +433,36 @@ class ConvModel(ModelStandard):
         arr_in = None
         match len(img_tensor.shape):
             case 3:
-                arr_in = img_tensor
+                arr_in = numpy.swapaxes(numpy.swapaxes(img_tensor, 0, 2), 1, 2)
             case 2:
-                arr_in = np.array([img_tensor]).reshape(28, 28, 1)
+                arr_in = numpy.array([img_tensor]).reshape(28, 28, 1)
 
         self.image_tensor = arr_in
         self.convLayers[0] = arr_in
 
     def _getPatchMap(self, img, patch_x, patch_y):
-        xSlide = img.shape[1] - patch_x + 1
-        #print(xSlide)
-        ySlide = img.shape[0] - patch_y + 1
-        #print(img.shape[0])
+        x_slide = img.shape[2] - patch_x + 1
+        y_slide = img.shape[1] - patch_y + 1
         tensor_four = []
 
-        for f in range(img.shape[2]):
+        for f in range(img.shape[0]):
             p_tensor = []
-            for y in range(ySlide):
+            for y in range(y_slide):
                 p_mat = []
-                for x in range(xSlide):
-                    p_mat.append(img[y:y + patch_y, x:x + patch_x, f].flatten())
-                #print(p_mat)
+                for x in range(x_slide):
+                    p_mat.append(img[f][y:y + patch_y, x:x + patch_x].flatten())
                 p_tensor.append(p_mat)
             tensor_four.append(p_tensor)
 
-        #print(tensor_four)
-        return np.array(tensor_four)
+        return numpy.array(tensor_four)
 
 
-    def addLayerC(self, patch_length, stride):
-        self.kernels.append(getRandWeights(patch_length**2, 1))
+    def addLayerC(self, patch_length, stride, num_kernels):
+        self.kernels.append(numpy.random.uniform(MIN, MAX, (num_kernels, patch_length ** 2, 1)))
         self.wrt_kernels.append([0])
         self.convLayers.append([0])
         self.inactiveConvLayers.append([0])
-        self.patch_sizes.append(np.array([patch_length, patch_length, 0]))
+        self.patch_sizes.append(numpy.array([patch_length, patch_length, 0]))
         self.strides.append(stride)
 
         self.patch_area.append(patch_length**2)
@@ -475,8 +475,8 @@ class ConvModel(ModelStandard):
         self.vk = copy.deepcopy(self.kernels)
 
         for i in range(len(self.mw)):
-            self.mk[i] = np.array(self.mk[i])
-            self.vk[i] = np.array(self.vk[i])
+            self.mk[i] = numpy.array(self.mk[i])
+            self.vk[i] = numpy.array(self.vk[i])
 
         for i in range(len(self.mw)):
             self.mk[i] *= 0.0
@@ -486,9 +486,10 @@ class ConvModel(ModelStandard):
     def forwardC(self, norm):
         for i in range(len(self.convLayers)-1):
             self.patch_maps.append(self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1]))
-            #self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (self.convLayers[i].shape[0]-self.patch_sizes[i][0]+1, self.convLayers[i].shape[1]-self.patch_sizes[i][0]+1))
-            self.inactiveConvLayers[i] = np.dot(self.patch_maps[i], self.kernels[i])
-            self.inactiveConvLayers[i] = self.inactiveConvLayers[i].reshape(np.array(list(self.convLayers[i].shape)) - self.patch_sizes[i] + np.array([1, 1, 0])) # reshape n stuff
+            self.inactiveConvLayers[i] = numpy.dot(self.patch_maps[i], self.kernels[i])
+            '''self.inactiveConvLayers[i] = np.swapaxes(np.swapaxes(np.dot(self.patch_maps[i], self.kernels[i]), 1, 3), 2, 3)
+            dims = self.inactiveConvLayers[i].shape
+            self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (dims[0] * dims[1], dims[2], dims[3]))'''
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
         self.setInput(self.convLayers[-1], norm)
 
@@ -500,27 +501,35 @@ class ConvModel(ModelStandard):
         self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
-            kernel_side = int(math.sqrt(len(self.kernels[i-1])))
-            deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
-            t_deriv = deriv.reshape(self.patch_maps[i].shape[0:3])
-            self.wrt_kernels[i] = np.sum(np.rot90(t_deriv, 1, (2, 1)) * np.rot90(self.patch_maps[i], 1, (3, 1)), (0, 2, 3))
-            self.wrt_kernels[i] = self.wrt_kernels[i].reshape((kernel_side**2, 1))
+            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
+            this_deriv = numpy.moveaxis(numpy.swapaxes(last_deriv, 3, 4), 4, 0)
+            this_deriv = numpy.multiply(this_deriv, self.patch_maps[i])
+            self.wrt_kernels[i] = numpy.sum(this_deriv, (1, 2, 3))
 
-            transformed_deriv = np.pad(t_deriv, kernel_side-1, "constant")
-            deriv_map = self._getPatchMap(transformed_deriv, kernel_side, kernel_side)
-            self.wrt_cLayer = np.dot(deriv_map, np.flip(self.kernels[i], 0))
+            #calculates derivative wrt the layer the current kernel activates to be used for the next kernel
+            temp = []
+            self.wrt_cLayer = []
+            kernel_side = int(math.sqrt(self.kernels[i].shape[1]))
+            padded_deriv = numpy.delete(numpy.delete(numpy.delete(numpy.pad(last_deriv, kernel_side - 1, "constant"), [0, last_deriv.shape[0]+1], 0), [0, last_deriv.shape[3]+1], 3), [0, last_deriv.shape[4]+1], 4)
+            print(padded_deriv.shape)
+
+            for p in range(self.kernels[i].shape[0]):
+                temp.append(self._getPatchMap(padded_deriv[:, :, :, p, 0], kernel_side, kernel_side))
+                self.wrt_cLayer.append(numpy.dot(temp[p], numpy.flip(self.kernels[i][p], 1)))
+            self.wrt_cLayer = numpy.sum(self.wrt_cLayer, 0)
+            self.wrt_cLayer = numpy.reshape(self.wrt_cLayer, self.wrt_cLayer.shape[0:len(self.wrt_cLayer.shape)-1])
 
     def updateADAMC(self, wrt_kernels):
         self.tk += 1
 
         for k in range(len(self.mk)):
             self.mk[k] = wrt_kernels[k] * (1.0 - self.B_1) + self.mk[k] * self.B_1
-            self.vk[k] = np.square(wrt_kernels[k]) * (1 - self.B_2) + self.vk[k] * self.B_2
+            self.vk[k] = numpy.square(wrt_kernels[k]) * (1 - self.B_2) + self.vk[k] * self.B_2
 
-            self.mk_hat = self.mk[k] / (1.0 - math.pow(self.B_1, self.t))
-            self.vk_hat = self.vk[k] / (1.0 - math.pow(self.B_2, self.t))
+            mk_hat = self.mk[k] / (1.0 - math.pow(self.B_1, self.t))
+            vk_hat = self.vk[k] / (1.0 - math.pow(self.B_2, self.t))
 
-            self.kernels[k] -= self.a_adam * np.divide(self.mk_hat, np.sqrt(self.vk_hat) + self.e)
+            self.kernels[k] -= self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e)
 
     def updateSGDC(self, wrt_kernels):
         for i in range(len(self.kernels)):
@@ -559,10 +568,10 @@ class ConvModel(ModelStandard):
                     self.computeGradientC([training_out[j]])
                     avg_error += self.error([training_out[j]])
                     for k in range(len(self.meanw)):
-                        self.meanw[k] += np.array(self.d_weight_vec[k])
-                        self.meanb[k] += np.array(self.d_bias_vec[k])
+                        self.meanw[k] += numpy.array(self.d_weight_vec[k])
+                        self.meanb[k] += numpy.array(self.d_bias_vec[k])
                     for k in range(len(self.meank)):
-                        self.meank[k] += np.array(self.wrt_kernels[k].reshape(self.kernels[k].shape))
+                        self.meank[k] += numpy.array(self.wrt_kernels[k].reshape(self.kernels[k].shape))
                 for b in range(len(self.meanw)):
                     self.meanw[b] /= self.batch_size
                     self.meanb[b] /= self.batch_size
