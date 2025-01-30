@@ -8,9 +8,9 @@ import random
 
 import numpy as np
 
-MIN = 0
-MAX = 0.01
-
+MIN = -1
+MAX = 1
+small_num = 0.0000000000000001
 
 # Activation Functions and their derivatives
 
@@ -83,8 +83,6 @@ def D_CROSS_ENTROPY(predicted_vec, true_vec):
 
 
 def BINARY_CROSS_ENTROPY(predicted_vec, true_vec):
-    print(predicted_vec)
-    print(true_vec)
     return numpy.negative(numpy.sum(true_vec * numpy.log(predicted_vec) + (1.0 - true_vec) * numpy.log(1.0 - predicted_vec)))
 
 
@@ -117,14 +115,14 @@ d_funcDict = {
 
 error_Dict = {
     "mse": MEAN_SQUARED_ERROR,
-    "cross_entropy": CROSS_ENTROPY,
-    "b_cross_entropy": BINARY_CROSS_ENTROPY,
+    "ce": CROSS_ENTROPY,
+    "bce": BINARY_CROSS_ENTROPY,
 }
 
 d_error_Dict = {
     "mse": D_MEAN_SQUARED_ERROR,
-    "cross_entropy": D_CROSS_ENTROPY,
-    "b_cross_entropy": D_BINARY_CROSS_ENTROPY,
+    "ce": D_CROSS_ENTROPY,
+    "bce": D_BINARY_CROSS_ENTROPY,
 }
 
 
@@ -259,8 +257,7 @@ class ModelStandard:
         self.quickce = self.eFuncName == "cross_entropy" and self.outFuncName == "sigmoid"
 
     def setInput(self, arr_in, norm):
-
-        if numpy.array(arr_in).shape[0] != 1:
+        if numpy.array(arr_in).shape[0] != 1 or len(numpy.array(arr_in).shape) > 2:
             inputv = numpy.array(arr_in).flatten()
         else:
             inputv = numpy.array(arr_in)
@@ -279,7 +276,6 @@ class ModelStandard:
 
     def feedforward(self):
         for i in range(len(self.weights)):
-
             self.inactive[i + 1] = numpy.dot(self.weights[i], self.layers[i]) + self.bias[i]
             self.layers[i + 1] = self.func_vec[i](self.inactive[i + 1])
 
@@ -288,10 +284,10 @@ class ModelStandard:
     def computeGradient(self, true_l):
         self.feedforward()
 
-        if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
-            expected = vecify(true_l[0], len(self.layers[-1]))
-        elif len(true_l) == len(self.layers[-1]):
+        if len(true_l) == len(self.layers[-1]):
             expected = true_l
+        elif len(true_l) == 1:
+            expected = vecify(true_l[0], len(self.layers[-1]))
         else:
             print(f"Incomparable Dimensions {len(true_l)} {len(self.layers[-1])}")
             exit(-1)
@@ -331,12 +327,10 @@ class ModelStandard:
 
         # Update weights and biases
         for k in range(len(self.mw)):
-            # print(self.mw[k])
 
             self.mw[k] = d_weight_vec[k] * (1.0 - self.B_1) + self.mw[k] * self.B_1
             self.mb[k] = d_bias_vec[k] * (1.0 - self.B_1) + self.mb[k] * self.B_1
 
-            # print(self.m[k])
 
             self.vw[k] = numpy.square(d_weight_vec[k]) * (1 - self.B_2) + self.vw[k] * self.B_2
             self.mw_hat = self.mw[k] / (1 - math.pow(self.B_1, self.t))
@@ -349,49 +343,40 @@ class ModelStandard:
             self.weights[k] -= self.a_adam * numpy.divide(self.mw_hat, numpy.sqrt(self.vw_hat) + self.e)
             self.bias[k] -= self.a_adam * numpy.divide(self.mb_hat, numpy.sqrt(self.vb_hat) + self.e)
 
-    def optimize(self, expected, o_type):
+    def update(self, expected_in, expected, o_type, norm):
+        self.setInput(expected_in, norm)
         self.computeGradient(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
 
     def train(self, training_in, training_out, o_type, norm):
-        print(len(training_out))
-        print(self.batch_size)
+        #print(self.batch_size)
         self.iterations = int(len(training_out) / self.batch_size)
-        print(self.iterations)
+        #print(self.iterations)
 
         self.meanw = copy.deepcopy(self.weights)
         self.meanb = copy.deepcopy(self.bias)
 
         for _epoch in range(self.epochs):
-            print("Epoch: " + str(_epoch))
+            #print("Epoch: " + str(_epoch))
             for i in range(self.iterations):
-                print("Iteration: " + str(i))
+            #    print("Iteration: " + str(i))
                 for a in range(len(self.meanw)):
                     self.meanw[a] *= 0
                     self.meanb[a] *= 0
                 for j in range(self.batch_size):
+                    self.setInput(training_in[self.batch_size * i + j], norm)
+                    self.computeGradient([training_out[self.batch_size * i + j]])
                     for k in range(len(self.meanw)):
-                        self.setInput(training_in[j], norm)
-                        self.computeGradient([training_out[j]])
                         self.meanw[k] += numpy.array(self.d_weight_vec[k])
-                        self.meanb[k] += numpy.array(self.d_bias_vec[k])
+                        self.meanb[k] += numpy.reshape(numpy.array(self.d_bias_vec[k]), self.meanb[k].shape)
                 for b in range(len(self.meanw)):
                     self.meanw[b] /= self.batch_size
                     self.meanb[b] /= self.batch_size
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
 
-
-    def out(self):
-        self.feedforward()
-        print("Predicted: " + str(self.layers[-1]))
-
-    def debug(self):
-        print("Weights: " + str(self.weights))
-        print("Layers: " + str(self.layers))
-        print("derivatives: " + str(self.d_weight_vec))
-
-    def error(self, true_l):
+    def error(self, true_in, true_l, norm):
+        self.setInput(true_in, norm)
         self.feedforward()
 
         if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
@@ -403,6 +388,11 @@ class ModelStandard:
             exit(-1)
 
         return self.errorFunc(self.layers[-1], expected)
+
+    def singlePredict(self, test_in, test_out, norm):
+        error = self.error(test_in, test_out, norm)
+        print(f"Predicted with {error} deviation from {test_out}")
+        return error
 
 
 
@@ -433,9 +423,9 @@ class ConvModel(ModelStandard):
         arr_in = None
         match len(img_tensor.shape):
             case 3:
-                arr_in = numpy.swapaxes(numpy.swapaxes(img_tensor, 0, 2), 1, 2)
+                arr_in = unitTensor(numpy.swapaxes(numpy.swapaxes(img_tensor, 0, 2), 1, 2))
             case 2:
-                arr_in = numpy.array([img_tensor]).reshape(28, 28, 1)
+                arr_in = unitTensor(numpy.array([img_tensor]).reshape(1, 28, 28))
 
         self.image_tensor = arr_in
         self.convLayers[0] = arr_in
@@ -474,11 +464,13 @@ class ConvModel(ModelStandard):
         self.mk = copy.deepcopy(self.kernels)
         self.vk = copy.deepcopy(self.kernels)
 
-        for i in range(len(self.mw)):
+        print(len(self.mk))
+        for i in range(len(self.mk)):
+            print(i)
             self.mk[i] = numpy.array(self.mk[i])
             self.vk[i] = numpy.array(self.vk[i])
 
-        for i in range(len(self.mw)):
+        for i in range(len(self.mk)):
             self.mk[i] *= 0.0
             self.vk[i] *= 0.0
 
@@ -505,7 +497,6 @@ class ConvModel(ModelStandard):
             this_deriv = numpy.moveaxis(numpy.swapaxes(last_deriv, 3, 4), 4, 0)
             this_deriv = numpy.multiply(this_deriv, self.patch_maps[i])
             self.wrt_kernels[i] = numpy.reshape(numpy.sum(this_deriv, (1, 2, 3)), self.kernels[i].shape)
-            print(self.wrt_kernels[i].shape)
 
             #calculates derivative wrt the layer the current kernel activates to be used for the next kernel
             temp = []
@@ -535,51 +526,64 @@ class ConvModel(ModelStandard):
         for i in range(len(self.kernels)):
             self.kernels[i] -= self.a_sgd * wrt_kernels[i]
 
-    def updateC(self, expected, o_type):
+    def updateC(self, expected_in, expected, o_type):
+        self.setImage(expected_in)
         self.computeGradientC(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
         self.updatersC.get(o_type)(self.wrt_kernels)
 
     def train(self, training_in, training_out, o_type, norm):
 
-        avg_error = 0
-
-        print(len(training_out))
-        print(self.batch_size)
+        #print(len(training_out))
+        #print(self.batch_size)
         self.iterations = int(len(training_out) / self.batch_size)
-        print(self.iterations)
+        #print(self.iterations)
 
         self.meanw = copy.deepcopy(self.weights)
         self.meanb = copy.deepcopy(self.bias)
         self.meank = copy.deepcopy(self.kernels)
 
         for _epoch in range(self.epochs):
-            print("Epoch: " + str(_epoch))
+            #print("Epoch: " + str(_epoch))
             for i in range(self.iterations):
-                print("Iteration: " + str(i))
-                print(avg_error)
+            #    print("Iteration: " + str(i))
                 for a in range(len(self.meanw)):
                     self.meanw[a] *= 0
                     self.meanb[a] *= 0
                 for a in range(len(self.meank)):
                     self.meank[a] *= 0
                 for j in range(self.batch_size):
-                    self.setImage(training_in[j])
-                    self.computeGradientC([training_out[j]])
-                    avg_error += self.error([training_out[j]])
+                    self.setImage(training_in[self.batch_size * i + j])
+                    self.computeGradientC([training_out[self.batch_size * i + j]])
                     for k in range(len(self.meanw)):
                         self.meanw[k] += numpy.array(self.d_weight_vec[k])
                         self.meanb[k] += numpy.array(self.d_bias_vec[k])
                     for k in range(len(self.meank)):
-                        self.meank[k] += numpy.array(self.wrt_kernels[k].reshape(self.kernels[k].shape))
+                        self.meank[k] += numpy.array(self.wrt_kernels[k])
                 for b in range(len(self.meanw)):
                     self.meanw[b] /= self.batch_size
                     self.meanb[b] /= self.batch_size
-                for b in range(len(self.meank)):
-                    self.meank[b] /= self.batch_size
-                avg_error /= self.batch_size
+                for k in range(len(self.meank)):
+                    self.meank[k] /= self.batch_size
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
                 self.updatersC.get(o_type)(self.meank)
+    def error(self, true_in, true_l, norm):
+        self.setImage(true_in)
+        self.forwardAll()
+
+        if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
+            expected = vecify(true_l[0], len(self.layers[-1]))
+        elif len(true_l) == len(self.layers[-1]):
+            expected = true_l
+        else:
+            print("Incomparable Dimensions")
+            exit(-1)
+
+        return self.errorFunc(self.layers[-1], expected)
+    def singlePredict(self, test_in, test_out, norm):
+        error = self.error(test_in, test_out, norm)
+        print(f"Predicted with {error} deviation from {test_out}")
+        return error
 
 
