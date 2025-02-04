@@ -45,7 +45,7 @@ def RELU(vec):
 
 # First derivative of Relu
 def D_RELU(vec):
-    return numpy.fmin(numpy.fmax(vec, 0), 1)
+    return numpy.greater(vec, 0)
 
 
 def LRELU(vec):
@@ -54,14 +54,9 @@ def LRELU(vec):
 
 # First derivative of Leaky Relu
 def D_LRELU(vec):
-    d = []
-    for x in vec:
-        if x > 0:
-            d.append(1.0)
-        else:
-            d.append(0.1)
-
-    return numpy.array(d)
+    a = numpy.greater(0, vec) * 0.1
+    b = numpy.greater(vec, 0) * 1
+    return a+b
 
 
 # Loss Functions and their derivatives
@@ -163,7 +158,8 @@ def unitTensor(x):
 
 # Neural Network Model
 class ModelStandard:
-    def __init__(self, batch_size, epochs):
+    def __init__(self, batch_size, epochs, norm):
+        self.norm = norm
         self.batch_size = batch_size
         self.epochs = epochs
         self.iterations = 0
@@ -256,13 +252,13 @@ class ModelStandard:
         self.quickbce = self.eFuncName == "b_cross_entropy" and self.outFuncName == "softmax"
         self.quickce = self.eFuncName == "cross_entropy" and self.outFuncName == "sigmoid"
 
-    def setInput(self, arr_in, norm):
+    def setInput(self, arr_in):
         if numpy.array(arr_in).shape[0] != 1 or len(numpy.array(arr_in).shape) > 2:
             inputv = numpy.array(arr_in).flatten()
         else:
             inputv = numpy.array(arr_in)
 
-        if norm:
+        if self.norm:
             inputv = unitTensor(inputv)
 
         self.inputVec = inputv
@@ -343,12 +339,12 @@ class ModelStandard:
             self.weights[k] -= self.a_adam * numpy.divide(self.mw_hat, numpy.sqrt(self.vw_hat) + self.e)
             self.bias[k] -= self.a_adam * numpy.divide(self.mb_hat, numpy.sqrt(self.vb_hat) + self.e)
 
-    def update(self, expected_in, expected, o_type, norm):
-        self.setInput(expected_in, norm)
+    def update(self, expected_in, expected, o_type):
+        self.setInput(expected_in)
         self.computeGradient(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
 
-    def train(self, training_in, training_out, o_type, norm):
+    def train(self, training_in, training_out, o_type):
         #print(self.batch_size)
         self.iterations = int(len(training_out) / self.batch_size)
         #print(self.iterations)
@@ -364,7 +360,7 @@ class ModelStandard:
                     self.meanw[a] *= 0
                     self.meanb[a] *= 0
                 for j in range(self.batch_size):
-                    self.setInput(training_in[self.batch_size * i + j], norm)
+                    self.setInput(training_in[self.batch_size * i + j])
                     self.computeGradient([training_out[self.batch_size * i + j]])
                     for k in range(len(self.meanw)):
                         self.meanw[k] += numpy.array(self.d_weight_vec[k])
@@ -375,8 +371,8 @@ class ModelStandard:
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
 
-    def error(self, true_in, true_l, norm):
-        self.setInput(true_in, norm)
+    def error(self, true_in, true_l):
+        self.setInput(true_in)
         self.feedforward()
 
         if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
@@ -389,18 +385,30 @@ class ModelStandard:
 
         return self.errorFunc(self.layers[-1], expected)
 
-    def singlePredict(self, test_in, test_out, norm):
-        error = self.error(test_in, test_out, norm)
+    def singlePredict(self, test_in, test_out):
+        error = self.error(test_in, test_out)
         print(f"Predicted with {error} deviation from {test_out}")
+        print(numpy.argmax(self.layers[-1]))
+        print(self.layers[-1])
         return error
+
+    def clean(self):
+        del self.weights
+        del self.bias
+        del self.layers
+        del self.d_weight_vec
+        del self.d_bias_vec
+        del self.mw
+        del self.mb
+        del self.meanw
+        del self.meanb
 
 
 
 class ConvModel(ModelStandard):
-    def __init__(self, batch_size, epochs):
-        super().__init__(batch_size, epochs)
+    def __init__(self, batch_size, epochs, norm):
+        super().__init__(batch_size, epochs, norm)
         self.image_tensor = None #where the image is stored as a tensor
-        self.sum_tuple = [] # The axes across which to sum
         self.patch_sizes = [] # array of patch sizes in (x,y) form
         self.patch_area = [] # array of patch areas with each element = x * y
         self.strides = [] #array of strides for each convolution
@@ -423,9 +431,12 @@ class ConvModel(ModelStandard):
         arr_in = None
         match len(img_tensor.shape):
             case 3:
-                arr_in = unitTensor(numpy.swapaxes(numpy.swapaxes(img_tensor, 0, 2), 1, 2))
+                arr_in = numpy.swapaxes(numpy.swapaxes(img_tensor, 0, 2), 1, 2)
             case 2:
-                arr_in = unitTensor(numpy.array([img_tensor]).reshape(1, 28, 28))
+                arr_in = numpy.expand_dims(img_tensor, 0)
+
+        if self.norm:
+            arr_in = unitTensor(arr_in)
 
         self.image_tensor = arr_in
         self.convLayers[0] = arr_in
@@ -458,15 +469,15 @@ class ConvModel(ModelStandard):
         self.patch_area.append(patch_length**2)
 
     def initializeC(self):
-        self.forwardC(False)
+        self.forwardC()
         self.initialize()
 
         self.mk = copy.deepcopy(self.kernels)
         self.vk = copy.deepcopy(self.kernels)
 
-        print(len(self.mk))
+        #print(len(self.mk))
         for i in range(len(self.mk)):
-            print(i)
+        #    print(i)
             self.mk[i] = numpy.array(self.mk[i])
             self.vk[i] = numpy.array(self.vk[i])
 
@@ -475,7 +486,7 @@ class ConvModel(ModelStandard):
             self.vk[i] *= 0.0
 
 
-    def forwardC(self, norm):
+    def forwardC(self):
         for i in range(len(self.convLayers)-1):
             self.patch_maps.append(self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1]))
             self.inactiveConvLayers[i] = numpy.dot(self.patch_maps[i], self.kernels[i])
@@ -483,17 +494,17 @@ class ConvModel(ModelStandard):
             dims = self.inactiveConvLayers[i].shape
             self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (dims[0] * dims[1], dims[2], dims[3]))'''
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
-        self.setInput(self.convLayers[-1], norm)
+        self.setInput(self.convLayers[-1])
 
     def forwardAll(self):
-        self.forwardC(False)
+        self.forwardC()
         self.feedforward()
 
     def computeGradientC(self, true_l):
         self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
-            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
+            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_LRELU(self.inactiveConvLayers[i])
             this_deriv = numpy.moveaxis(numpy.swapaxes(last_deriv, 3, 4), 4, 0)
             this_deriv = numpy.multiply(this_deriv, self.patch_maps[i])
             self.wrt_kernels[i] = numpy.reshape(numpy.sum(this_deriv, (1, 2, 3)), self.kernels[i].shape)
@@ -512,15 +523,17 @@ class ConvModel(ModelStandard):
 
     def updateADAMC(self, wrt_kernels):
         self.tk += 1
-
         for k in range(len(self.mk)):
             self.mk[k] = wrt_kernels[k] * (1.0 - self.B_1) + self.mk[k] * self.B_1
-            self.vk[k] = numpy.square(wrt_kernels[k]) * (1 - self.B_2) + self.vk[k] * self.B_2
+            self.vk[k] = numpy.square(wrt_kernels[k]) * (1.0 - self.B_2) + self.vk[k] * self.B_2
 
-            mk_hat = self.mk[k] / (1.0 - math.pow(self.B_1, self.t))
-            vk_hat = self.vk[k] / (1.0 - math.pow(self.B_2, self.t))
+            mk_hat = copy.deepcopy(self.mk[k] / (1.0 - math.pow(self.B_1, self.tk)))
+            vk_hat = copy.deepcopy(self.vk[k] / (1.0 - math.pow(self.B_2, self.tk)))
 
+            #print(self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e))
             self.kernels[k] -= self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e)
+            #print("wrt: " + str(wrt_kernels))
+            #print("adam: " + str(self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e)))
 
     def updateSGDC(self, wrt_kernels):
         for i in range(len(self.kernels)):
@@ -532,7 +545,7 @@ class ConvModel(ModelStandard):
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
         self.updatersC.get(o_type)(self.wrt_kernels)
 
-    def train(self, training_in, training_out, o_type, norm):
+    def train(self, training_in, training_out, o_type):
 
         #print(len(training_out))
         #print(self.batch_size)
@@ -568,7 +581,7 @@ class ConvModel(ModelStandard):
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
                 self.updatersC.get(o_type)(self.meank)
-    def error(self, true_in, true_l, norm):
+    def error(self, true_in, true_l):
         self.setImage(true_in)
         self.forwardAll()
 
@@ -581,9 +594,23 @@ class ConvModel(ModelStandard):
             exit(-1)
 
         return self.errorFunc(self.layers[-1], expected)
-    def singlePredict(self, test_in, test_out, norm):
-        error = self.error(test_in, test_out, norm)
+    def singlePredict(self, test_in, test_out):
+        error = self.error(test_in, test_out)
         print(f"Predicted with {error} deviation from {test_out}")
+        print(numpy.argmax(self.layers[-1]))
+        print(self.layers[-1])
         return error
+    def clean(self):
+        del self.weights
+        del self.bias
+        del self.layers
+        del self.d_weight_vec
+        del self.d_bias_vec
+        del self.mw
+        del self.mb
+        del self.meanw
+        del self.meanb
+        del self.kernels
+        del self.wrt_kernels
 
 
