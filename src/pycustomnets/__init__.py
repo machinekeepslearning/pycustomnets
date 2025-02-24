@@ -1,6 +1,4 @@
 import copy
-from idlelib.pyparse import trans
-from logging import fatal
 
 import numpy
 import math
@@ -158,7 +156,9 @@ def unitTensor(x):
 
 # Neural Network Model
 class ModelStandard:
-    def __init__(self, batch_size, epochs, norm):
+    def __init__(self, batch_size, epochs, norm, dropout):
+        self.training = True
+        self.dropout = dropout
         self.norm = norm
         self.batch_size = batch_size
         self.epochs = epochs
@@ -232,8 +232,8 @@ class ModelStandard:
         self.vb = copy.deepcopy(self.bias)
         self.mw_hat = copy.deepcopy(self.weights)
         self.vw_hat = copy.deepcopy(self.weights)
-        self.mb_hat = copy.deepcopy(self.weights)
-        self.vb_hat = copy.deepcopy(self.weights)
+        self.mb_hat = copy.deepcopy(self.bias)
+        self.vb_hat = copy.deepcopy(self.bias)
 
         for i in range(len(self.mw)):
             self.mw[i] = numpy.array(self.mw[i])
@@ -247,10 +247,14 @@ class ModelStandard:
             self.mb[i] *= 0.0
             self.vb[i] *= 0.0
 
+
         # shortcuts
 
-        self.quickbce = self.eFuncName == "b_cross_entropy" and self.outFuncName == "softmax"
-        self.quickce = self.eFuncName == "cross_entropy" and self.outFuncName == "sigmoid"
+        self.quickbce = self.eFuncName == "bce" and self.outFuncName == "softmax"
+
+        #print(self.quickbce)
+
+        self.quickce = self.eFuncName == "ce" and self.outFuncName == "sigmoid"
 
     def setInput(self, arr_in):
         if numpy.array(arr_in).shape[0] != 1 or len(numpy.array(arr_in).shape) > 2:
@@ -271,14 +275,22 @@ class ModelStandard:
         self.eFuncName = error
 
     def feedforward(self):
+
         for i in range(len(self.weights)):
+            del self.inactive[i + 1]
+            self.inactive.insert(i+1, [0])
+            del self.layers[i + 1]
+            self.layers.insert(i + 1, [0])
+
             self.inactive[i + 1] = numpy.dot(self.weights[i], self.layers[i]) + self.bias[i]
             self.layers[i + 1] = self.func_vec[i](self.inactive[i + 1])
 
     # Optimization start
 
     def computeGradient(self, true_l):
+        self.training = True
         self.feedforward()
+
 
         if len(true_l) == len(self.layers[-1]):
             expected = true_l
@@ -288,13 +300,17 @@ class ModelStandard:
             print(f"Incomparable Dimensions {len(true_l)} {len(self.layers[-1])}")
             exit(-1)
 
-        d_Hidden = self.d_errorFunc(self.layers[-1], expected)
+        if self.quickce or self.quickbce:
+            d_Hidden = 0
+        else:
+            d_Hidden = self.d_errorFunc(self.layers[-1], expected)
 
         for layer_index in range(len(self.layers) - 1, 0, -1):
 
             d_activated_sum_vec = self.d_func_vec[layer_index - 1](self.inactive[layer_index])
 
             if self.quickbce and layer_index == len(self.layers) - 1:
+                #print(f"BCE SOFTMAX at {layer_index}")
                 self.d_weight_vec[layer_index - 1] = BCE_SOFTMAX(self.inactive[layer_index], expected)
                 self.d_bias_vec[layer_index - 1] = BCE_SOFTMAX(self.inactive[layer_index], expected)
             elif self.quickce and layer_index == len(self.layers) - 1:
@@ -372,6 +388,7 @@ class ModelStandard:
                 self.updaters.get(o_type)(self.meanw, self.meanb)
 
     def error(self, true_in, true_l):
+        self.training = True
         self.setInput(true_in)
         self.feedforward()
 
@@ -392,22 +409,11 @@ class ModelStandard:
         print(self.layers[-1])
         return error
 
-    def clean(self):
-        del self.weights
-        del self.bias
-        del self.layers
-        del self.d_weight_vec
-        del self.d_bias_vec
-        del self.mw
-        del self.mb
-        del self.meanw
-        del self.meanb
-
 
 
 class ConvModel(ModelStandard):
-    def __init__(self, batch_size, epochs, norm):
-        super().__init__(batch_size, epochs, norm)
+    def __init__(self, batch_size, epochs, norm, dropout):
+        super().__init__(batch_size, epochs, norm, dropout)
         self.image_tensor = None #where the image is stored as a tensor
         self.patch_sizes = [] # array of patch sizes in (x,y) form
         self.patch_area = [] # array of patch areas with each element = x * y
@@ -418,6 +424,7 @@ class ConvModel(ModelStandard):
         self.kernels = [] # (x, y) size filters that act as weights
         self.wrt_kernels = [] # gradient wrt the kernel at each position
         self.meank = None
+        self.cLayerCount = 1
 
         self.updatersC = {
             "sgd": self.updateSGDC,
@@ -437,6 +444,10 @@ class ConvModel(ModelStandard):
 
         if self.norm:
             arr_in = unitTensor(arr_in)
+
+        del self.image_tensor
+        del self.convLayers[0]
+        self.convLayers.insert(0, [0])
 
         self.image_tensor = arr_in
         self.convLayers[0] = arr_in
@@ -467,10 +478,14 @@ class ConvModel(ModelStandard):
         self.strides.append(stride)
 
         self.patch_area.append(patch_length**2)
+        self.cLayerCount += 1
 
     def initializeC(self):
+        self.patch_maps = [0] * self.cLayerCount
+
         self.forwardC()
         self.initialize()
+
 
         self.mk = copy.deepcopy(self.kernels)
         self.vk = copy.deepcopy(self.kernels)
@@ -487,12 +502,30 @@ class ConvModel(ModelStandard):
 
 
     def forwardC(self):
+
+        if self.training and self.dropout > 0:
+            layer_size = numpy.size(self.convLayers[0])
+            d_mask = numpy.zeros(layer_size)
+
+            d_mask[0:int((1 - self.dropout) * layer_size)] = 1
+
+            d_mask = d_mask.reshape((self.convLayers[0]).shape)
+            numpy.random.shuffle(d_mask)
+
+            self.convLayers[0] = (d_mask * self.convLayers[0]) / self.dropout
+            del d_mask
+
         for i in range(len(self.convLayers)-1):
-            self.patch_maps.append(self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1]))
+            del self.patch_maps[i]
+            del self.inactiveConvLayers[i]
+            del self.convLayers[i+1]
+
+            self.patch_maps.insert(i, None)
+            self.inactiveConvLayers.insert(i, None)
+            self.convLayers.insert(i + 1, [0])
+
+            self.patch_maps[i] = self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1])
             self.inactiveConvLayers[i] = numpy.dot(self.patch_maps[i], self.kernels[i])
-            '''self.inactiveConvLayers[i] = np.swapaxes(np.swapaxes(np.dot(self.patch_maps[i], self.kernels[i]), 1, 3), 2, 3)
-            dims = self.inactiveConvLayers[i].shape
-            self.inactiveConvLayers[i] = np.reshape(self.inactiveConvLayers[i], (dims[0] * dims[1], dims[2], dims[3]))'''
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
         self.setInput(self.convLayers[-1])
 
@@ -501,14 +534,19 @@ class ConvModel(ModelStandard):
         self.feedforward()
 
     def computeGradientC(self, true_l):
+        #print("computing grad")
         self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
-            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_LRELU(self.inactiveConvLayers[i])
+            del self.wrt_kernels[i]
+            self.wrt_kernels.insert(i, None)
+
+            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
             this_deriv = numpy.moveaxis(numpy.swapaxes(last_deriv, 3, 4), 4, 0)
             this_deriv = numpy.multiply(this_deriv, self.patch_maps[i])
             self.wrt_kernels[i] = numpy.reshape(numpy.sum(this_deriv, (1, 2, 3)), self.kernels[i].shape)
 
+            del self.wrt_cLayer
             #calculates derivative wrt the layer the current kernel activates to be used for the next kernel
             temp = []
             self.wrt_cLayer = []
@@ -530,10 +568,10 @@ class ConvModel(ModelStandard):
             mk_hat = copy.deepcopy(self.mk[k] / (1.0 - math.pow(self.B_1, self.tk)))
             vk_hat = copy.deepcopy(self.vk[k] / (1.0 - math.pow(self.B_2, self.tk)))
 
-            #print(self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e))
             self.kernels[k] -= self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e)
-            #print("wrt: " + str(wrt_kernels))
-            #print("adam: " + str(self.a_adam * numpy.divide(mk_hat, numpy.sqrt(vk_hat) + self.e)))
+
+            del mk_hat
+            del vk_hat
 
     def updateSGDC(self, wrt_kernels):
         for i in range(len(self.kernels)):
@@ -588,7 +626,7 @@ class ConvModel(ModelStandard):
         if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:
             expected = vecify(true_l[0], len(self.layers[-1]))
         elif len(true_l) == len(self.layers[-1]):
-            expected = true_l
+            expected = numpy.array(true_l)
         else:
             print("Incomparable Dimensions")
             exit(-1)
@@ -600,17 +638,5 @@ class ConvModel(ModelStandard):
         print(numpy.argmax(self.layers[-1]))
         print(self.layers[-1])
         return error
-    def clean(self):
-        del self.weights
-        del self.bias
-        del self.layers
-        del self.d_weight_vec
-        del self.d_bias_vec
-        del self.mw
-        del self.mb
-        del self.meanw
-        del self.meanb
-        del self.kernels
-        del self.wrt_kernels
 
 
