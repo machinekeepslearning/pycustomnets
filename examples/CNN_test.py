@@ -7,7 +7,7 @@ def main():
     CNN = pc.ConvModel(2, 4, True, 0.3)
     CNN.setImage(x_train[0])
     CNN.addLayerC(3, 1, 64)
-    #CNN.addLayerC(2, 1, 32)
+    CNN.addLayerC(2, 1, 32)
     CNN.addLayer(128, "lrelu")
     CNN.addLayer(10, "softmax")
     CNN.setError("bce")

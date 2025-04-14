@@ -453,27 +453,38 @@ class ConvModel(ModelStandard):
         self.image_tensor = arr_in
         self.convLayers[0] = arr_in
 
-    def _getPatchMap(self, img, patch_x, patch_y):
+    def _getPatchMap(self, image, patch_x, patch_y):
+        preserved = image.shape[0:-2]
+        # process patch
 
-        #print(img.shape)
+        if len(image.shape) < 3:
+            image = numpy.expand_dims(image, 0)
+        elif len(image.shape) > 3:
+            prod = numpy.prod(image.shape[0:-2])
+            image = numpy.reshape(image, (prod, image.shape[-2], image.shape[-1]))
 
-        if len(img.shape) < 3:
-            img = numpy.expand_dims(img, 0)
+        # get the patch map
 
-        x_slide = img.shape[2] - patch_x + 1
-        y_slide = img.shape[1] - patch_y + 1
-        tensor_four = []
+        x_slide = image.shape[2] - patch_x + 1
+        y_slide = image.shape[1] - patch_y + 1
+        final_tensor = []
 
-        for f in range(img.shape[0]):
+        for f in range(image.shape[0]):
             p_tensor = []
             for y in range(y_slide):
                 p_mat = []
                 for x in range(x_slide):
-                    p_mat.append(img[f][y:y + patch_y, x:x + patch_x].flatten())
+                    p_mat.append(image[f][y:y + patch_y, x:x + patch_x].flatten())
                 p_tensor.append(p_mat)
-            tensor_four.append(p_tensor)
+            final_tensor.append(p_tensor)
 
-        return numpy.array(tensor_four)
+        final_tensor = numpy.array(final_tensor)
+
+        final = numpy.append(preserved, final_tensor.shape[1:4])
+        final_tensor = final_tensor.reshape(final)
+
+        return final_tensor
+
 
 
     def addLayerC(self, patch_length, stride, num_kernels):
@@ -510,17 +521,17 @@ class ConvModel(ModelStandard):
 
     def forwardC(self):
 
-        if self.training and self.dropout > 0:
-            layer_size = numpy.size(self.convLayers[0])
-            d_mask = numpy.zeros(layer_size)
-
-            d_mask[0:int((1 - self.dropout) * layer_size)] = 1
-
-            d_mask = d_mask.reshape((self.convLayers[0]).shape)
-            numpy.random.shuffle(d_mask)
-
-            self.convLayers[0] = (d_mask * self.convLayers[0]) / self.dropout
-            del d_mask
+        # if self.training and self.dropout > 0:
+        #     layer_size = numpy.size(self.convLayers[0])
+        #     d_mask = numpy.zeros(layer_size)
+        #
+        #     d_mask[0:int((1 - self.dropout) * layer_size)] = 1
+        #
+        #     d_mask = d_mask.reshape((self.convLayers[0]).shape)
+        #     numpy.random.shuffle(d_mask)
+        #
+        #     self.convLayers[0] = (d_mask * self.convLayers[0]) / self.dropout
+        #     del d_mask
 
         for i in range(len(self.convLayers)-1):
             del self.patch_maps[i]
@@ -533,12 +544,12 @@ class ConvModel(ModelStandard):
 
 
             self.patch_maps[i] = self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1])
-            #self.inactiveConvLayers[i] = numpy.moveaxis(numpy.dot(self.patch_maps[i], self.kernels[i]), 2, 0).squeeze()
-            self.inactiveConvLayers[i] = numpy.swapaxes(numpy.dot(self.patch_maps[i], self.kernels[i]), 3, 0)
-            #ishape = self.inactiveConvLayers[i].shape
-            #manip_shape = (ishape[0] * ishape[1], ishape[2], ishape[3], ishape[4])
-            #self.inactiveConvLayers[i] = numpy.reshape(self.inactiveConvLayers[i], manip_shape)
-            #print(self.inactiveConvLayers[i].shape)
+
+            self.inactiveConvLayers[i] = numpy.squeeze(numpy.dot(self.patch_maps[i], self.kernels[i]))
+
+            self.inactiveConvLayers[i] = numpy.moveaxis(self.inactiveConvLayers[i], -1, 0)
+
+
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
         self.setInput(self.convLayers[-1])
 
@@ -551,65 +562,47 @@ class ConvModel(ModelStandard):
         self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
+
+            # find derivative of loss wrt the ith kernel
             del self.wrt_kernels[i]
             self.wrt_kernels.insert(i, None)
 
             last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
 
-            #print(last_deriv.shape)
-            ddims = len(last_deriv.shape)
-            #print(self.patch_maps[i].shape)
-            this_deriv = numpy.moveaxis(last_deriv, ddims-2, ddims-4)
-
-            #print(this_deriv.shape)
+            this_deriv = numpy.expand_dims(last_deriv,-1)
 
             this_deriv = numpy.multiply(this_deriv, self.patch_maps[i])
 
-            self.wrt_kernels[i] = numpy.reshape(numpy.sum(this_deriv, tuple(range(1, ddims-1))), self.kernels[i].shape)
+            self.wrt_kernels[i] = numpy.sum(this_deriv, tuple(range(1, len(this_deriv.shape)-1)))
 
-            del self.wrt_cLayer
+            self.wrt_kernels[i] = numpy.reshape(self.wrt_kernels[i], self.kernels[i].shape)
 
-            #calculates derivative wrt the layer the current kernel activates to be used for the next kernel
+            # Compute grad wrt next layer for next kernel
 
-            self.wrt_cLayer = []
-            kernel_side = int(math.sqrt(self.kernels[i].shape[1]))
+            to_pad = []
 
-            c_grade = self.image_tensor.shape[-1]
-            for j in range(i + 1):
-                c_grade -= int(math.sqrt(self.kernels[j].shape[1])) - 1
-
-            pad_dims = []
-            for j in range(len(last_deriv.shape)):
-                if last_deriv.shape[j] == c_grade:
-                    pad_dims.append((kernel_side-1, kernel_side-1))
+            for v in range(len(last_deriv.shape)):
+                if v == len(last_deriv.shape)-1 or v == len(last_deriv.shape)-2:
+                    to_pad.append([1, 1])
                 else:
-                    pad_dims.append((0, 0))
-            #print(pad_dims)
+                    to_pad.append([0, 0])
 
-            #print(last_deriv.shape)
+            padded = numpy.pad(last_deriv, to_pad)
 
-            padded_deriv = numpy.pad(last_deriv, tuple(pad_dims), "constant")
-            #padded_deriv = numpy.moveaxis(padded_deriv, 2, 0)
+            r_kernel = numpy.flip(self.kernels[i], 1)
 
-            #print(padded_deriv.shape)
+            d_map = self._getPatchMap(padded, self.patch_sizes[i][0], self.patch_sizes[i][1])
 
-            #self.wrt_cLayer = numpy.dot(self._getPatchMap(padded_deriv.squeeze(), kernel_side, kernel_side), numpy.flip(self.kernels[i], 1).swapaxes(0, 2))
-            newkern = numpy.flip(self.kernels[i], 1)
-            #for _ in range(ddims - 4):
-            #    newkern = numpy.expand_dims(newkern, len(newkern.shape)-1)
-            #newkern = numpy.swapaxes(newkern,1, len(newkern.shape)-1)
+            temp = []
 
-            #print(padded_deriv.shape)
-            #print(newkern.shape)
-            p = []
+            for k in range(r_kernel.shape[0]):
+                temp.append(numpy.dot(d_map[k], r_kernel[k]))
 
-            for j in range(self.kernels[i].shape[0]):
-                p = self._getPatchMap(numpy.moveaxis(padded_deriv[j], ddims-3, 0), kernel_side, kernel_side)
-                print(padded_deriv[j].shape)
-                print(p.shape)
-                self.wrt_cLayer.append(numpy.dot(p, newkern[0]))
+            self.wrt_cLayer = numpy.sum(temp, 0)
 
-            self.wrt_cLayer = numpy.sum(self.wrt_cLayer, 0)
+
+
+
 
     def updateADAMC(self, wrt_kernels):
         self.tk += 1
