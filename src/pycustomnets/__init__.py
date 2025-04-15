@@ -361,7 +361,7 @@ class ModelStandard:
         self.computeGradient(expected)
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
 
-    def train(self, training_in, training_out, o_type):
+    def train(self, training_in, training_out, o_type, t_type):
         #print(self.batch_size)
         self.iterations = int(len(training_out) / self.batch_size)
         #print(self.iterations)
@@ -628,12 +628,8 @@ class ConvModel(ModelStandard):
         self.updaters.get(o_type)(self.d_weight_vec, self.d_bias_vec)
         self.updatersC.get(o_type)(self.wrt_kernels)
 
-    def train(self, training_in, training_out, o_type):
-
-        #print(len(training_out))
-        #print(self.batch_size)
+    def train(self, training_in, training_out, o_type, t_type):
         self.iterations = int(len(training_out) / self.batch_size)
-        #print(self.iterations)
 
         self.meanw = copy.deepcopy(self.weights)
         self.meanb = copy.deepcopy(self.bias)
@@ -656,14 +652,16 @@ class ConvModel(ModelStandard):
                         self.meanb[k] += numpy.array(self.d_bias_vec[k])
                     for k in range(len(self.meank)):
                         self.meank[k] += numpy.array(self.wrt_kernels[k])
-                for b in range(len(self.meanw)):
-                    self.meanw[b] /= self.batch_size
-                    self.meanb[b] /= self.batch_size
-                for k in range(len(self.meank)):
-                    self.meank[k] /= self.batch_size
+                if t_type == "avg":
+                    for b in range(len(self.meanw)):
+                        self.meanw[b] /= self.batch_size
+                        self.meanb[b] /= self.batch_size
+                    for k in range(len(self.meank)):
+                        self.meank[k] /= self.batch_size
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
                 self.updatersC.get(o_type)(self.meank)
+                print(f"iteration: {i}")
     def error(self, true_in, true_l):
         self.setImage(true_in)
         self.forwardAll()
@@ -683,5 +681,14 @@ class ConvModel(ModelStandard):
         print(numpy.argmax(self.layers[-1]))
         print(self.layers[-1])
         return error
+    def eval(self, test_in_arr, test_out_arr):
+        avg_loss = 0
+        avg_acc = 0
 
+        for i in range(len(test_out_arr)):
+            avg_loss += self.error(test_in_arr[i], [test_out_arr[i]])
+            avg_acc += self.layers[-1][test_out_arr[i]]
+
+        print(f"Average loss: {avg_loss/len(test_out_arr)}")
+        print(f"Average accuracy: {avg_acc/len(test_out_arr)}")
 
