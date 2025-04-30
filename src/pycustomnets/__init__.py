@@ -508,9 +508,7 @@ class ConvModel(ModelStandard):
         self.mk = copy.deepcopy(self.kernels)
         self.vk = copy.deepcopy(self.kernels)
 
-        #print(len(self.mk))
         for i in range(len(self.mk)):
-        #    print(i)
             self.mk[i] = numpy.array(self.mk[i])
             self.vk[i] = numpy.array(self.vk[i])
 
@@ -542,15 +540,14 @@ class ConvModel(ModelStandard):
             self.inactiveConvLayers.insert(i, None)
             self.convLayers.insert(i + 1, [0])
 
-
             self.patch_maps[i] = self._getPatchMap(self.convLayers[i], self.patch_sizes[i][0], self.patch_sizes[i][1])
 
-            self.inactiveConvLayers[i] = numpy.squeeze(numpy.dot(self.patch_maps[i], self.kernels[i]))
+            self.inactiveConvLayers[i] = numpy.squeeze(numpy.dot(self.patch_maps[i], self.kernels[i]), -1)
 
             self.inactiveConvLayers[i] = numpy.moveaxis(self.inactiveConvLayers[i], -1, 0)
 
-
             self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
+
         self.setInput(self.convLayers[-1])
 
     def forwardAll(self):
@@ -558,11 +555,9 @@ class ConvModel(ModelStandard):
         self.feedforward()
 
     def computeGradientC(self, true_l):
-        #print("computing grad")
         self.forwardAll()
         self.computeGradient(true_l)
         for i in range(len(self.inactiveConvLayers) - 1, -1, -1):
-
             # find derivative of loss wrt the ith kernel
             del self.wrt_kernels[i]
             self.wrt_kernels.insert(i, None)
@@ -583,7 +578,7 @@ class ConvModel(ModelStandard):
 
             for v in range(len(last_deriv.shape)):
                 if v == len(last_deriv.shape)-1 or v == len(last_deriv.shape)-2:
-                    to_pad.append([1, 1])
+                    to_pad.append([self.patch_sizes[i][0]-1, self.patch_sizes[i][1]-1])
                 else:
                     to_pad.append([0, 0])
 
