@@ -5,7 +5,6 @@ import math
 import random
 
 import numpy as np
-from pyexpat import features
 
 MIN = -0.1
 MAX = 0.1
