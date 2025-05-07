@@ -423,6 +423,8 @@ class ConvModel(ModelStandard):
         self.inactiveConvLayers = [] # convLayers that have not been passed into an activation function
         self.kernels = [] # (x, y) size filters that act as weights
         self.wrt_kernels = [] # gradient wrt the kernel at each position
+        self.cfunc_vec = []
+        self.d_cfunc_vec = []
         self.meank = None
         self.cLayerCount = 1
 
@@ -486,7 +488,7 @@ class ConvModel(ModelStandard):
 
 
 
-    def addLayerC(self, patch_length, stride, num_kernels):
+    def addLayerC(self, patch_length, stride, num_kernels, function):
         self.kernels.append(numpy.random.uniform(MIN, MAX, (num_kernels, patch_length ** 2, 1)))
         self.wrt_kernels.append([0])
         self.convLayers.append([0])
@@ -496,6 +498,9 @@ class ConvModel(ModelStandard):
 
         self.patch_area.append(patch_length**2)
         self.cLayerCount += 1
+
+        self.cfunc_vec.append(funcDict.get(function))
+        self.d_cfunc_vec.append(d_funcDict.get(function))
 
     def initializeC(self):
         self.patch_maps = [0] * self.cLayerCount
@@ -545,7 +550,7 @@ class ConvModel(ModelStandard):
 
             self.inactiveConvLayers[i] = numpy.moveaxis(self.inactiveConvLayers[i], -1, 0)
 
-            self.convLayers[i+1] = RELU(self.inactiveConvLayers[i])
+            self.convLayers[i+1] = self.cfunc_vec[i](self.inactiveConvLayers[i])
 
         self.setInput(self.convLayers[-1])
 
@@ -561,7 +566,7 @@ class ConvModel(ModelStandard):
             del self.wrt_kernels[i]
             self.wrt_kernels.insert(i, None)
 
-            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * D_RELU(self.inactiveConvLayers[i])
+            last_deriv = self.wrt_cLayer.reshape(self.inactiveConvLayers[i].shape) * self.d_cfunc_vec[i](self.inactiveConvLayers[i])
 
             this_deriv = numpy.expand_dims(last_deriv,-1)
 
@@ -655,7 +660,8 @@ class ConvModel(ModelStandard):
 
                 self.updaters.get(o_type)(self.meanw, self.meanb)
                 self.updatersC.get(o_type)(self.meank)
-                print(f"iteration: {i}")
+                print(f"iteration: {i}", end="")
+                print("\r", end="")
     def error(self, true_in, true_l):
         self.setImage(true_in)
         self.forwardAll()
