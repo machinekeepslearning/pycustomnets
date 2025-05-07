@@ -545,7 +545,7 @@ class ConvModel(ModelStandard):
 
             self.inactiveConvLayers[i] = numpy.moveaxis(self.inactiveConvLayers[i], -1, 0)
 
-            self.convLayers[i+1] = LRELU(self.inactiveConvLayers[i])
+            self.convLayers[i+1] = RELU(self.inactiveConvLayers[i])
 
         self.setInput(self.convLayers[-1])
 
