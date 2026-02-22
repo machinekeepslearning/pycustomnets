@@ -236,21 +236,27 @@ class ModelStandard:
 
         self.quickce = self.eFuncName == "ce" and self.outFuncName == "sigmoid" or self.outFuncName == "softmax"
 
-    def setInput(self, arr_in):
-        arr_in = numpy.array(arr_in)
+    def setInput(self, input_size):
 
-        if arr_in.shape[0] != 1 or len(arr_in.shape) > 2:
-            inputv = arr_in.flatten()
-        else:
-            inputv = arr_in
+        self.inputVec = [0] * int(input_size)
+        self.layers[0] = self.inputVec
+        self.inactive[0] = self.inputVec
+        # arr_in = numpy.array(arr_in)
+        #
+        # if arr_in.shape[0] != 1 or len(arr_in.shape) > 2:
+        #     inputv = arr_in.flatten()
+        # else:
+        #     inputv = arr_in
+        #
+        # if self.norm:
+        #     #inputv = inputv/255
+        #     inputv = unitTensor(inputv)
 
-        if self.norm:
-            #inputv = inputv/255
-            inputv = unitTensor(inputv)
+        #self.inputVec = inputv
+        #self.layers[0] = copy.deepcopy(inputv)
+        #self.inactive[0] = copy.deepcopy(inputv)
 
-        self.inputVec = inputv
-        self.layers[0] = copy.deepcopy(inputv)
-        self.inactive[0] = copy.deepcopy(inputv)
+
 
     def setError(self, error):
         self.errorFunc = error_Dict.get(error)
@@ -266,7 +272,8 @@ class ModelStandard:
 
     def computeGradient(self, training_in, true_l):
         self.training = True
-        self.setInput(training_in)
+        self.layers[0] = training_in
+        self.inactive[0] = training_in
         self.feedforward()
 
 
@@ -349,7 +356,8 @@ class ModelStandard:
 
     def error(self, true_in, true_l):
         self.training = True
-        self.setInput(true_in)
+        self.layers[0] = true_in
+        self.inactive[0] = true_in
         self.feedforward()
 
         if len(true_l) != len(self.layers[-1]) and len(true_l) == 1:

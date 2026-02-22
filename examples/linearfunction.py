@@ -16,7 +16,7 @@ def main():
 
     epoches = 500
     NN = ModelStandard(1, 1, False, False)
-    NN.setInput(training_data_in[0])
+    NN.setInput(1)
     NN.setError("mse")
     NN.addLayer(1, "relu")
     NN.initialize()
