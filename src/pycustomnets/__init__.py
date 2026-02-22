@@ -364,6 +364,13 @@ class ModelStandard:
 
     def singlePredict(self, test_in, test_out):
         error = self.error(test_in, test_out)
+        print(f"Predicted {self.layers[-1][0]}, True label was {test_out[0]}")
+        print(f"Accuracy {1 - (abs(self.layers[-1][0] - test_out[0]))/test_out[0]}")
+        print(f"Error: {error}")
+        return error
+
+    def probPredict(self, test_in, test_out):
+        error = self.error(test_in, test_out)
         print(f"Predicted {numpy.argmax(self.layers[-1])}, True label was {test_out[0]}")
         print(f"Accuracy: {numpy.array(self.layers[-1][int(test_out[0])])}")
         print(self.layers[-1])

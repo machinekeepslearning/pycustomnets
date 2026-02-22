@@ -1,9 +1,9 @@
 import time
 
-from pycustomnets import *
+from src.pycustomnets import *
 
 def training_func(x):
-    return 2 * x - 2
+    return 10 * x - 2
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
     NN = ModelStandard(1, 1, False, False)
     NN.setInput(training_data_in[0])
     NN.setError("mse")
-    NN.addLayer(1, "lrelu")
+    NN.addLayer(1, "relu")
     NN.initialize()
     for _ in range(epoches):
         for i in range(len(training_data_in)):

@@ -1,12 +1,12 @@
-import matplotlib.pyplot as plt
 import numpy
 import time
 
-import pycustomnets as pc
+import src.pycustomnets as pc
 
-from keras._tf_keras.keras.datasets import mnist
+from keras.datasets import mnist
 
 (train_X, train_Y), (test_X, test_Y) = mnist.load_data()
+
 
 def main():
     NN = pc.ModelStandard(1000, 3, True, 0)
@@ -32,7 +32,8 @@ def main():
     NN.eval(test_X, test_Y)
     print(f"training took {end - start} seconds")
 
+    NN.probPredict(test_X[0], [test_Y[0]])
+
+
 if __name__ == "__main__":
     main()
-
-

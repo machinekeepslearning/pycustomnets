@@ -1,4 +1,4 @@
-import pycustomnets as pc
+import src.pycustomnets as pc
 from keras._tf_keras.keras.datasets import mnist
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
